@@ -1,0 +1,11 @@
+{
+  "schema": "v1",
+  "purpose": "Separate compiled artifacts by immutable image/source identity.",
+  "mounts": {
+    "torch": "/cache/torch",
+    "triton": "/cache/triton",
+    "flashinfer": "/cache/flashinfer"
+  },
+  "host_template": "/data/models/sglang-qwen38-27b-cache-v1-{image_digest_short}-{source_revision_short}-{profile}",
+  "do_not_share_between": ["image digest", "SGLang source revision", "CUDA/PyTorch ABI"]
+}

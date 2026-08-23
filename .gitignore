@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+
+bench/results/*
+!bench/results/.gitkeep
+
+environment.json

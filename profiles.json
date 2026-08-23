@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "profiles": {
+    "tp1-bf16-safe": {
+      "tp": 1, "gpus": "0", "context_length": 262144, "port": 11436, "container_name": "sglang-qwen38-27b-tp1-bf16-safe",
+      "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.80"]
+    },
+    "tp1-bf16-production": {
+      "alias": "tp1-bf16-safe", "status": "pending_qualification", "port": 11436, "container_name": "sglang-qwen38-27b-tp1-bf16-production"
+    },
+    "tp2-bf16-safe": {
+      "tp": 2, "gpus": "0,1", "context_length": 262144, "port": 11436, "container_name": "sglang-qwen38-27b-tp2-bf16-safe",
+      "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.80"]
+    },
+    "tp2-bf16-production": {
+      "alias": "tp2-bf16-safe", "status": "pending_qualification", "port": 11436, "container_name": "sglang-qwen38-27b-tp2-bf16-production"
+    },
+    "replica0": {"alias": "tp1-bf16-safe", "gpus": "0", "port": 11436, "container_name": "sglang-qwen38-27b-replica0"},
+    "replica1": {"alias": "tp1-bf16-safe", "gpus": "1", "port": 11437, "container_name": "sglang-qwen38-27b-replica1"},
+    "tp1-bf16-dspark-candidate": {
+      "status": "unqualified_candidate", "tp": 1, "gpus": "0", "context_length": 262144,
+      "port": 11438, "container_name": "sglang-qwen38-27b-tp1-bf16-dspark-candidate",
+      "draft_model": "RadixArk/Qwen3.8-27B-DSpark", "draft_model_dir_env": "DRAFT_MODEL_DIR",
+      "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.85", "--speculative-algorithm", "DSPARK", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DSpark", "--speculative-draft-attention-backend", "flashinfer", "--mamba-radix-cache-strategy", "extra_buffer_lazy"]
+    },
+    "tp2-bf16-dspark-candidate": {
+      "status": "unqualified_candidate", "tp": 2, "gpus": "0,1", "context_length": 262144,
+      "port": 11439, "container_name": "sglang-qwen38-27b-tp2-bf16-dspark-candidate",
+      "draft_model": "RadixArk/Qwen3.8-27B-DSpark", "draft_model_dir_env": "DRAFT_MODEL_DIR",
+      "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.85", "--speculative-algorithm", "DSPARK", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DSpark", "--speculative-draft-attention-backend", "flashinfer", "--mamba-radix-cache-strategy", "extra_buffer_lazy"]
+    }
+  }
+}

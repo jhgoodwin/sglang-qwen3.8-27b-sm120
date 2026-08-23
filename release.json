@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "product": "sglang-qwen3.8-27b-sm120",
+  "model": "Qwen/Qwen3.8-27B",
+  "cache_schema": "v1",
+  "image": {
+    "reference": "UNRESOLVED@sha256:REPLACE_AFTER_IMAGE_VERIFICATION",
+    "status": "unresolved",
+    "reason": "No image digest has been verified in this repository yet."
+  }
+}

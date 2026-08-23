@@ -1,0 +1,29 @@
+{
+  "schema": "environment.v1",
+  "captured_at_utc": "REPLACE_WITH_CAPTURE_TIME",
+  "provenance": {
+    "hostname": "REDACTED",
+    "cwd": "REDACTED",
+    "python": "REPLACE_WITH_VERSION"
+  },
+  "host": {
+    "platform": "REPLACE_WITH_PLATFORM",
+    "machine": "REPLACE_WITH_ARCHITECTURE"
+  },
+  "commands": {},
+  "compatibility": {},
+  "disk": {
+    "/data/models": {
+      "status": "REPLACE_WITH_CAPTURE"
+    }
+  },
+  "inputs": {
+    "source_lock": "UNRESOLVED until explicitly verified",
+    "image": "UNRESOLVED until explicitly verified",
+    "huggingface_snapshot": {
+      "status": "unavailable",
+      "reason": "no explicit completed snapshot path supplied"
+    }
+  },
+  "locks": {}
+}

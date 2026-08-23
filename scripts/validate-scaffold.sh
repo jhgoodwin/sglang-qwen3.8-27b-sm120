@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+command -v python3 >/dev/null || { echo "missing python3" >&2; exit 1; }
+python3 - "$repo" <<'PY'
+import json, pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+for name in ("release.json", "source.lock.json", "stack.lock.json", "cache-schema.json", "profiles.json"):
+    json.loads((root / name).read_text())
+release = json.loads((root / "release.json").read_text())
+assert release["model"] == "Qwen/Qwen3.8-27B"
+assert re.fullmatch(r"v[1-9][0-9]*", release["cache_schema"])
+profiles = json.loads((root / "profiles.json").read_text())["profiles"]
+for name in ("tp1-bf16-safe", "tp1-bf16-production", "tp2-bf16-safe", "tp2-bf16-production", "replica0", "replica1", "tp1-bf16-dspark-candidate", "tp2-bf16-dspark-candidate"):
+    assert name in profiles
+assert "--speculative-algorithm" not in json.dumps(profiles["tp1-bf16-safe"])
+for name in ("tp1-bf16-dspark-candidate", "tp2-bf16-dspark-candidate"):
+    candidate = profiles[name]
+    assert candidate["status"] == "unqualified_candidate"
+    assert candidate["draft_model"] == "RadixArk/Qwen3.8-27B-DSpark"
+    assert candidate["draft_model_dir_env"] == "DRAFT_MODEL_DIR"
+    assert "--speculative-algorithm" in candidate["extra_args"]
+    assert "--speculative-draft-model-path" in candidate["extra_args"]
+assert profiles["tp1-bf16-dspark-candidate"]["port"] != profiles["tp2-bf16-dspark-candidate"]["port"]
+assert "127.0.0.1" in (root / "RUN.md").read_text()
+expected_defaults = {
+    "tp1-bf16-safe": ("0", 11436, "sglang-qwen38-27b-tp1-bf16-safe"),
+    "tp1-bf16-production": ("0", 11436, "sglang-qwen38-27b-tp1-bf16-production"),
+    "tp2-bf16-safe": ("0,1", 11436, "sglang-qwen38-27b-tp2-bf16-safe"),
+    "tp2-bf16-production": ("0,1", 11436, "sglang-qwen38-27b-tp2-bf16-production"),
+    "replica0": ("0", 11436, "sglang-qwen38-27b-replica0"),
+    "replica1": ("1", 11437, "sglang-qwen38-27b-replica1"),
+}
+def resolve(name, trail=()):
+    assert name not in trail, f"profile alias cycle: {' -> '.join(trail + (name,))}"
+    profile = profiles[name]
+    parent = profile.get("alias")
+    if not parent:
+        return dict(profile)
+    resolved = resolve(parent, trail + (name,))
+    resolved.update({key: value for key, value in profile.items() if key != "alias"})
+    return resolved
+
+for name, (gpus, port, container_name) in expected_defaults.items():
+    resolved = resolve(name)
+    assert resolved["gpus"] == gpus
+    assert resolved["port"] == port
+    assert resolved["container_name"] == container_name
+serve = (root / "serve.sh").read_text()
+assert "replica1) default_tp=1; default_gpus=1" in serve
+assert "--port \"$container_port\"" in serve
+assert "tp1-bf16-safe|tp1-bf16-production|tp2-bf16-safe|tp2-bf16-production|replica0|replica1) extra+=(--mem-fraction-static 0.80)" in serve
+assert "@sha256:[0-9a-fA-F]{64}$" in serve
+assert "DRAFT_MODEL_DIR is required" in serve
+assert "--speculative-draft-model-path /models/Qwen3.8-27B-DSpark" in serve
+assert "/models/Qwen3.8-27B-DSpark:ro" in serve
+print("scaffold static contract valid; runtime qualification: not run")
+PY
+bash -n "$repo/serve.sh"
+test -x "$repo/serve.sh" || { echo "serve.sh must be executable" >&2; exit 1; }

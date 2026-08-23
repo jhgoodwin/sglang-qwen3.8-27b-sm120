@@ -1,0 +1,1729 @@
+{
+  "schema": "qwen38.phase7",
+  "version": 1,
+  "context_limit": 262144,
+  "purpose": "hardware-independent workload contract; measurements are external",
+  "execution": {
+    "unchanged_process_measured_runs": true,
+    "warmup_runs": 1,
+    "alternate_process_blocks_for_close_finalists": true,
+    "engine_suite": {
+      "sampling": "greedy",
+      "fixed_seed": true,
+      "streaming": true,
+      "forced_lengths": true
+    },
+    "natural_suite": {
+      "status": "unresolved_until_corpus_pinned",
+      "sampling": "model_recommended",
+      "stopping": "natural"
+    }
+  },
+  "required_identities": [
+    "model_snapshot",
+    "image_digest",
+    "source_revision",
+    "dependency_lock",
+    "hardware_identity"
+  ],
+  "required_run_metadata": [
+    "server_args",
+    "resolved_capacity",
+    "raw_run"
+  ],
+  "required_metrics": [
+    "ttft_ms",
+    "itl_ms",
+    "max_itl_ms",
+    "prompt_tokens_per_second",
+    "output_tokens_per_second",
+    "request_latency_ms",
+    "total_vram_bytes",
+    "free_vram_bytes",
+    "gpu_utilization_pct",
+    "pcie_bytes",
+    "power_w",
+    "temperature_c",
+    "energy_j"
+  ],
+  "cells": [
+    {
+      "id": "decode-8192-1024-c1",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-4096-c1",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-16384-c1",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-32768-c1",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-1024-c2",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 1024,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-4096-c2",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 4096,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-16384-c2",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 16384,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-32768-c2",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 32768,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-1024-c4",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 1024,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-4096-c4",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 4096,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-16384-c4",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 16384,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-8192-32768-c4",
+      "kind": "decode",
+      "input_tokens": 8192,
+      "output_tokens": 32768,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-1024-c1",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-4096-c1",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-16384-c1",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-32768-c1",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-1024-c2",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 1024,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-4096-c2",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 4096,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-16384-c2",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 16384,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-32768-c2",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 32768,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-1024-c4",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 1024,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-4096-c4",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 4096,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-16384-c4",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 16384,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-32768-32768-c4",
+      "kind": "decode",
+      "input_tokens": 32768,
+      "output_tokens": 32768,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-1024-c1",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-4096-c1",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-16384-c1",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-32768-c1",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-1024-c2",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 1024,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-4096-c2",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 4096,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-16384-c2",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 16384,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-32768-c2",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 32768,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-1024-c4",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 1024,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-4096-c4",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 4096,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-16384-c4",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 16384,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-100000-32768-c4",
+      "kind": "decode",
+      "input_tokens": 100000,
+      "output_tokens": 32768,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-1024-c1",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-4096-c1",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-16384-c1",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-32768-c1",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-1024-c2",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 1024,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-4096-c2",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 4096,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-16384-c2",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 16384,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-32768-c2",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 32768,
+      "concurrency": 2,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-1024-c4",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 1024,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-4096-c4",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 4096,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-16384-c4",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 16384,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "decode-128000-32768-c4",
+      "kind": "decode",
+      "input_tokens": 128000,
+      "output_tokens": 32768,
+      "concurrency": 4,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-8192-1024-c1",
+      "kind": "prefill",
+      "input_tokens": 8192,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-8192-4096-c1",
+      "kind": "prefill",
+      "input_tokens": 8192,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-8192-16384-c1",
+      "kind": "prefill",
+      "input_tokens": 8192,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-8192-32768-c1",
+      "kind": "prefill",
+      "input_tokens": 8192,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-32768-1024-c1",
+      "kind": "prefill",
+      "input_tokens": 32768,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-32768-4096-c1",
+      "kind": "prefill",
+      "input_tokens": 32768,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-32768-16384-c1",
+      "kind": "prefill",
+      "input_tokens": 32768,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-32768-32768-c1",
+      "kind": "prefill",
+      "input_tokens": 32768,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-65536-1024-c1",
+      "kind": "prefill",
+      "input_tokens": 65536,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-65536-4096-c1",
+      "kind": "prefill",
+      "input_tokens": 65536,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-65536-16384-c1",
+      "kind": "prefill",
+      "input_tokens": 65536,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-65536-32768-c1",
+      "kind": "prefill",
+      "input_tokens": 65536,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-100000-1024-c1",
+      "kind": "prefill",
+      "input_tokens": 100000,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-100000-4096-c1",
+      "kind": "prefill",
+      "input_tokens": 100000,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-100000-16384-c1",
+      "kind": "prefill",
+      "input_tokens": 100000,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-100000-32768-c1",
+      "kind": "prefill",
+      "input_tokens": 100000,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-128000-1024-c1",
+      "kind": "prefill",
+      "input_tokens": 128000,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-128000-4096-c1",
+      "kind": "prefill",
+      "input_tokens": 128000,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-128000-16384-c1",
+      "kind": "prefill",
+      "input_tokens": 128000,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-128000-32768-c1",
+      "kind": "prefill",
+      "input_tokens": 128000,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-200000-1024-c1",
+      "kind": "prefill",
+      "input_tokens": 200000,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-200000-4096-c1",
+      "kind": "prefill",
+      "input_tokens": 200000,
+      "output_tokens": 4096,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-200000-16384-c1",
+      "kind": "prefill",
+      "input_tokens": 200000,
+      "output_tokens": 16384,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-200000-32768-c1",
+      "kind": "prefill",
+      "input_tokens": 200000,
+      "output_tokens": 32768,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "prefill-261120-1024-c1",
+      "kind": "prefill",
+      "input_tokens": 261120,
+      "output_tokens": 1024,
+      "concurrency": 1,
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "forced_output_length": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "production-balanced-c4",
+      "kind": "production",
+      "requests": [
+        {
+          "input_tokens": 25000,
+          "output_tokens": 4000
+        },
+        {
+          "input_tokens": 25000,
+          "output_tokens": 4000
+        },
+        {
+          "input_tokens": 25000,
+          "output_tokens": 4000
+        },
+        {
+          "input_tokens": 25000,
+          "output_tokens": 4000
+        }
+      ],
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    },
+    {
+      "id": "production-asymmetric-c4",
+      "kind": "production",
+      "requests": [
+        {
+          "input_tokens": 100000,
+          "output_tokens": 16000
+        },
+        {
+          "input_tokens": 8000,
+          "output_tokens": 4000
+        },
+        {
+          "input_tokens": 8000,
+          "output_tokens": 4000
+        },
+        {
+          "input_tokens": 8000,
+          "output_tokens": 4000
+        }
+      ],
+      "prompt_paths": [
+        "prompt-1",
+        "prompt-2",
+        "prompt-3",
+        "prompt-4",
+        "prompt-5"
+      ],
+      "seed": 0,
+      "streaming": true,
+      "cache_modes": [
+        "cold",
+        "hot"
+      ],
+      "warmups": 1
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "model": {
+    "repository": "Qwen/Qwen3.8-27B",
+    "revision": "UNRESOLVED",
+    "snapshot_path": "/data/models/Qwen3.8-27B",
+    "status": "unresolved",
+    "reason": "Resolve the completed local Hugging Face snapshot before qualification."
+  },
+  "runtime": {
+    "sglang_revision": "UNRESOLVED",
+    "image_digest": "UNRESOLVED",
+    "flashinfer_version": "UNRESOLVED",
+    "pytorch_version": "UNRESOLVED",
+    "cuda_version": "UNRESOLVED",
+    "sgl_kernel_version": "UNRESOLVED"
+  },
+  "updated": "2026-08-23"
+}

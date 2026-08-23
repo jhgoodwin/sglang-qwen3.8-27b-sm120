@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "product": "sglang-qwen3.8-27b-sm120",
+  "release": "release.json",
+  "model": "Qwen/Qwen3.8-27B",
+  "image": "UNRESOLVED@sha256:REPLACE_AFTER_IMAGE_VERIFICATION",
+  "platform": "linux/amd64",
+  "compute_capability": "sm_120",
+  "cache_schema": "v1",
+  "source_lock": "source.lock.json",
+  "qualification": "not_run"
+}
