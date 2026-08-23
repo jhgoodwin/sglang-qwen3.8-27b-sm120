@@ -1,0 +1,162 @@
+{
+  "schema": "qwen38.c2-c3-native-context-campaign",
+  "version": 1,
+  "status": "queued",
+  "purpose": "Staged TP1 C2 versus C3 native-context capacity and queue campaign",
+  "runtime": {
+    "profile_family": "tp1-nvfp4-dflash-cookbook-lazy",
+    "base_profile": "profiles.json#/profiles/tp1-nvfp4-dflash-cookbook-lazy",
+    "gpu": "0",
+    "tp": 1,
+    "context_length": 262144,
+    "max_output_tokens": 131072,
+    "model": "source.lock.json#/model_variants/nvfp4",
+    "draft_model": "source.lock.json#/draft_models/DFlash2",
+    "runtime_identity": "source.lock.json#/runtime",
+    "recipe_identity": "source.lock.json#/runtime_variants/current-cookbook-qwen38-27b",
+    "invariants": {
+      "kv_cache_dtype": "fp8_e4m3",
+      "mamba_ssm_dtype": "float32",
+      "attention_backend": "flashinfer",
+      "chunked_prefill_size": 2048,
+      "mem_fraction_static": 0.85,
+      "speculative_algorithm": "DFLASH",
+      "draft_tokens": 8,
+      "mamba_radix_cache_strategy": "extra_buffer_lazy",
+      "sampling": "server_default",
+      "reasoning": "medium",
+      "streaming": true
+    }
+  },
+  "execution_prerequisite": {
+    "status": "blocking",
+    "reason": "The existing prompt_runner is sequential; concurrent arrivals with aligned occupancy and partial-stream retention are required before execution.",
+    "required_capabilities": [
+      "concurrent HTTP streams",
+      "aligned request start and occupancy timestamps",
+      "partial-stream retention on timeout, HTTP error, restart, OOM, or incomplete output",
+      "no silent max-output clamp or template-token drift",
+      "server and GPU memory/graph/queue/ITL evidence"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "c2",
+      "max_running_requests": 2,
+      "max_mamba_cache_size": 8,
+      "mamba_state_slots_per_request": 4,
+      "dflash_intermediate_states": 8,
+      "port_metadata_only": 11447
+    },
+    {
+      "id": "c3",
+      "max_running_requests": 3,
+      "max_mamba_cache_size": 12,
+      "mamba_state_slots_per_request": 4,
+      "dflash_intermediate_states": 8,
+      "port_metadata_only": 11448
+    }
+  ],
+  "sizing_rules": {
+    "initial_profiles_omit_mamba_full_memory_ratio": true,
+    "ratio_comparison": {
+      "status": "later_separate_factor",
+      "approximate_native_length_ratio": 0.22,
+      "mutually_exclusive_with_explicit_state_pins": true
+    },
+    "free_vram_fraction_minimum": 0.05,
+    "native_budget_tokens": 262144,
+    "boundary_safe_margin_tokens": 1024
+  },
+  "measurement_contract": {
+    "repetitions": 3,
+    "warmup": "bounded short-output warmup; not full-length",
+    "natural_sampling": "omit temperature/top_p/top_k overrides",
+    "reasoning_effort": "medium for natural and operational cells",
+    "forced_output_success": "exact requested token count and expected length termination",
+    "natural_stop_before_cap_is_not_forced_capacity_evidence": true,
+    "failure_buckets": ["timeout", "oom", "restart", "http_error", "incomplete", "clamped", "wrong_occupancy"],
+    "required_evidence": ["server_args", "resolved_capacity", "memory_pools", "cuda_graphs", "free_vram", "queue_timestamps", "ttft", "itl", "max_itl", "partial_streams"]
+  },
+  "stages": [
+    {
+      "id": "A-boot-admission",
+      "kind": "boot_admission",
+      "depends_on": [],
+      "for_each_profile": true,
+      "requests": {"admit_exactly": "profile.max_running_requests", "excess_queue_probe": 1},
+      "repetitions": 3,
+      "requirements": ["cold boot", "short warmup", "capture resolved cap/pools/graphs/free VRAM", "record admission and queue evidence"],
+      "fail_fast": true
+    },
+    {
+      "id": "B-near-native-prefill",
+      "kind": "forced_length",
+      "depends_on": ["A-boot-admission"],
+      "for_each_profile": true,
+      "input_tokens": 261120,
+      "output_tokens": 1024,
+      "combined_tokens": 262144,
+      "occupancy": "exact profile concurrency",
+      "variants": ["cold", "hot only when prefix identity is controlled"],
+      "repetitions": 3,
+      "fail_fast": true
+    },
+    {
+      "id": "C-max-output-decode",
+      "kind": "forced_length",
+      "depends_on": ["B-near-native-prefill"],
+      "for_each_profile": true,
+      "input_tokens": 1024,
+      "output_tokens": 131072,
+      "combined_tokens": 132096,
+      "occupancy": "exact profile concurrency",
+      "ignore_eos": true,
+      "repetitions": 3,
+      "fail_fast": true
+    },
+    {
+      "id": "D-combined-boundary-safe",
+      "kind": "forced_length",
+      "depends_on": ["C-max-output-decode"],
+      "for_each_profile": true,
+      "input_tokens": 130048,
+      "output_tokens": 131072,
+      "combined_tokens": 261120,
+      "transport_template_margin_tokens": 1024,
+      "occupancy": "exact profile concurrency",
+      "ignore_eos": true,
+      "repetitions": 3,
+      "fail_fast": true,
+      "optional_strict_boundary": {
+        "enabled": false,
+        "shape": {"input_tokens": 131072, "output_tokens": 131072, "combined_tokens": 262144},
+        "condition": "enable only after runner proves exact server prompt-token preservation with no template overhead"
+      }
+    },
+    {
+      "id": "E-four-arrival-queue",
+      "kind": "concurrent_queue",
+      "depends_on": ["D-combined-boundary-safe"],
+      "for_each_profile": true,
+      "arrivals": 4,
+      "request_shape": {"input_tokens": 130048, "output_tokens": 131072, "combined_tokens": 261120},
+      "expected_waves": "ceil(4 / profile.max_running_requests)",
+      "repetitions": 3,
+      "requested_output_tokens_per_rep": 524288,
+      "measure": ["arrival", "admission", "start", "queue delay", "wave", "completion", "per-request TTFT/ITL", "aggregate throughput"],
+      "processes": "one server process; do not mix processes",
+      "fail_fast": true
+    }
+  ],
+  "workload_volume": {
+    "reference_decode_tok_s": 261.063,
+    "basis": "measured C1 current-cookbook extra_buffer_lazy winner; planning estimate only",
+    "per_profile": {
+      "c2": {"forced_output_tokens_per_rep": 262144, "three_rep_output_tokens": 786432, "rough_reference_seconds_per_rep": 1004.1},
+      "c3": {"forced_output_tokens_per_rep": 393216, "three_rep_output_tokens": 1179648, "rough_reference_seconds_per_rep": 1506.2},
+      "queue_four_arrivals": {"forced_output_tokens_per_rep": 524288, "three_rep_output_tokens": 1572864, "rough_reference_seconds_per_rep": 2008.8}
+    }
+  },
+  "non_goals": ["no GPU/Docker execution is implied by this queued manifest", "no launcher profile is added until the concurrent runner exists", "no ratio sweep is included in initial qualification"]
+}

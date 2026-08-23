@@ -77,3 +77,28 @@ ITL gap, not p99.
 only quantiles supported by the sample count (p95 requires 20, p99 requires
 100). `evaluate_gates` returns pass, fail, or unresolved; unresolved never
 passes. This tooling validates real measurements and is not a load generator.
+
+## Queued C2/C3 native-context campaign
+
+`bench/c2-c3-native-context-campaign.json` is a queued, queue-only experiment
+plan for the current TP1 NVFP4+DFlash2 `extra_buffer_lazy` winner. It splits
+the multivariate question into staged C2 and C3 profiles at the native
+262,144-token context limit, with a 131,072-token maximum output reserve:
+
+- C2 pins `--max-running-requests 2` and `--max-mamba-cache-size 8`.
+- C3 pins `--max-running-requests 3` and `--max-mamba-cache-size 12`.
+- Both retain FP8 KV, FP32 SSM, FlashInfer, 2,048-token chunks, 0.85 static
+  memory, DFlash2 with eight draft tokens, and `extra_buffer_lazy`.
+- The initial profiles deliberately omit `--mamba-full-memory-ratio`; the
+  approximate native-length ratio (~0.22) is a later, separate factor.
+- Stages fail fast: boot/admission, near-native prefill, max-output decode,
+  boundary-safe combined occupancy, then four simultaneous arrivals to expose
+  C2/C3 queue waves.
+
+The campaign is not executable yet. The existing prompt runner is sequential;
+a concurrent runner/importer must preserve aligned occupancy and admission
+timestamps, partial streams, exact server prompt-token counts, and timeout,
+OOM, restart, HTTP-error, incomplete, and clamp outcomes before any GPU run.
+The full three-repetition campaign is multi-hour because each forced-output
+cell requests 131,072 tokens. No launcher profile or Phase 7 manifest is
+changed by this queue plan.

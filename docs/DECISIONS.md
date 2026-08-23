@@ -151,3 +151,28 @@
   mixed-load starvation, vision, soak stability, and coding-quality gates.
   The operational comparison records token-count and time differences but
   makes no task-quality or quantization-causality claim.
+
+## Queued C2/C3 native-context campaign (2026-08-23)
+
+- Scope: split the next one-GPU capacity question into independently gated C2
+  and C3 experiments at the native 262,144-token context and 131,072-token
+  maximum output, without changing the measured winner or claiming capacity.
+- Decision: use a separate queued manifest,
+  `bench/c2-c3-native-context-campaign.json`, with explicit state pins: C2
+  uses eight Mamba state slots and C3 uses twelve (four per active request).
+  DFlash's eight verify/intermediate states remain separately runtime-allocated
+  and captured. Both retain the current TP1 NVFP4+DFlash2
+  `extra_buffer_lazy` runtime invariants.
+- Reason: the existing sequential prompt runner cannot measure simultaneous
+  arrivals, queue waves, aligned occupancy, or partial streams. A concurrent
+  runner/importer is an execution prerequisite, and failures must remain
+  distinguishable rather than being collapsed into incomplete success.
+- Decision: omit `mamba_full_memory_ratio` from the initial C2/C3 profiles.
+  The approximate native-length ratio (~0.22) is a later, mutually exclusive
+  factor so state-pin effects are isolated first. Planned ports 11447/11448
+  are metadata only; no launcher profiles are added by this plan.
+- Consequence: stages A through E are queued and fail-fast, with three measured
+  repetitions, a 1,024-token boundary-safe margin, and an optional exact
+  131,072+131,072 cell gated on proof that transport preserves exact server
+  prompt tokens. The manifest's multi-hour output-volume estimate is planning
+  metadata, not a benchmark result.

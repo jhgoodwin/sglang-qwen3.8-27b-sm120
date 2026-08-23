@@ -258,6 +258,16 @@ non-determinism under greedy decoding.
 
 ### 3B. Admission and near-limit tests
 
+- [x] Define and queue the staged C2/C3 native-context campaign in
+  `bench/c2-c3-native-context-campaign.json`; it directly exercises the
+  admission and near-limit goals below and informs Phase 4B/4C without marking
+  those tuning or capacity tasks complete.
+  - [ ] Implement and verify a concurrent runner/importer with aligned
+    occupancy timestamps and partial stream retention.
+  - [ ] Run boot/admission, 261,120+1,024 prefill, 1,024+131,072 decode,
+    boundary-safe 130,048+131,072, and four-arrival queue cells for explicit C2
+    (8 state slots) and C3 (12 state slots), retaining the optional ~0.22 ratio
+    comparison as a separate factor.
 - [ ] For TP1, test exact prompt lengths 8K, 32K, 64K, 100K, 128K, 200K, and
   near 262K with output reserves of 1K, 4K, 16K, and 32K where meaningful.
 - [ ] Test C1/C2/C4 combinations whose simultaneous live tokens reflect real
