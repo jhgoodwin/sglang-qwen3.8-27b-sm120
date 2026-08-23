@@ -18,7 +18,7 @@ draft_model_dir=${DRAFT_MODEL_DIR:-}
 draft_model_mount_src=$draft_model_dir
 draft_model_mount_name=Qwen3.8-27B-DSpark
 case "$profile" in
-  tp1-bf16-dflash-candidate) draft_model_mount_name=Qwen3.8-27B-DFlash2 ;;
+  tp1-bf16-dflash-candidate|tp1-nvfp4-dflash-cookbook-default|tp1-nvfp4-dflash-cookbook-lazy) draft_model_mount_name=Qwen3.8-27B-DFlash2 ;;
 esac
 draft_model_mount_target=/models/$draft_model_mount_name
 draft_model_container_path=$draft_model_mount_target
@@ -59,6 +59,9 @@ case "$profile" in
   tp1-nvfp4-dspark-candidate) default_tp=1; default_gpus=0; default_port=11443; default_name=sglang-qwen38-27b-tp1-nvfp4-dspark-candidate ;;
   tp2-bf16-dspark-candidate) default_tp=2; default_gpus=0,1; default_port=11439; default_name=sglang-qwen38-27b-tp2-bf16-dspark-candidate ;;
   tp1-bf16-dflash-candidate) default_tp=1; default_gpus=0; default_port=11442; default_name=sglang-qwen38-27b-tp1-bf16-dflash-candidate ;;
+  tp1-nvfp4-cookbook-no-spec) default_tp=1; default_gpus=0; default_port=11444; default_name=sglang-qwen38-27b-tp1-nvfp4-cookbook-no-spec ;;
+  tp1-nvfp4-dflash-cookbook-default) default_tp=1; default_gpus=0; default_port=11445; default_name=sglang-qwen38-27b-tp1-nvfp4-dflash-cookbook-default ;;
+  tp1-nvfp4-dflash-cookbook-lazy) default_tp=1; default_gpus=0; default_port=11446; default_name=sglang-qwen38-27b-tp1-nvfp4-dflash-cookbook-lazy ;;
   tp1-bf16-eagle-candidate) default_tp=1; default_gpus=0; default_port=11440; default_name=sglang-qwen38-27b-tp1-bf16-eagle-candidate ;;
   tp2-bf16-eagle-candidate) default_tp=2; default_gpus=0,1; default_port=11441; default_name=sglang-qwen38-27b-tp2-bf16-eagle-candidate ;;
   *) die "unknown PROFILE '$profile' (see profiles.json)" ;;
@@ -66,7 +69,7 @@ esac
 port=${port:-$default_port}; name=${name:-$default_name}
 [[ "$port" =~ ^[0-9]+$ && "$port" -ge 1 && "$port" -le 65535 ]] || die "invalid PORT: $port"
 case "$profile" in
-  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate)
+  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate|tp1-nvfp4-dflash-cookbook-default|tp1-nvfp4-dflash-cookbook-lazy)
     [[ -n "$draft_model_dir" ]] || die "DRAFT_MODEL_DIR is required for $profile (use an existing local draft snapshot; no download is performed)"
     [[ -d "$draft_model_dir" ]] || die "draft model path does not exist: $draft_model_dir (set DRAFT_MODEL_DIR; input is mounted read-only)"
     ;;
@@ -87,7 +90,11 @@ fi
 if [[ -z "$cache_dir" ]]; then digest=${image##*@sha256:}; cache_dir="/data/models/sglang-qwen38-27b-cache-v1-${digest:0:12}-${source_revision:0:12}-${profile}"; fi
 mkdir -p "$cache_dir"
 
-extra=(--attention-backend flashinfer --chunked-prefill-size 2048 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --mamba-ssm-dtype float32 --mamba-radix-cache-strategy extra_buffer_lazy)
+mamba_strategy=extra_buffer_lazy
+case "$profile" in
+  tp1-nvfp4-cookbook-no-spec|tp1-nvfp4-dflash-cookbook-default) mamba_strategy=extra_buffer ;;
+esac
+extra=(--attention-backend flashinfer --chunked-prefill-size 2048 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --mamba-ssm-dtype float32 --mamba-radix-cache-strategy "$mamba_strategy")
 case "$profile" in
   tp1-bf16-safe|tp1-bf16-production|tp2-bf16-safe|tp2-bf16-production|replica0|replica1) extra+=(--mem-fraction-static 0.80) ;;
   tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate)
@@ -109,6 +116,22 @@ case "$profile" in
       --speculative-draft-model-path "$draft_model_container_path"
       --speculative-num-draft-tokens 8)
     ;;
+  tp1-nvfp4-cookbook-no-spec)
+    extra+=(--mem-fraction-static 0.85
+      --mamba-full-memory-ratio 2.55 --max-running-requests 1)
+    ;;
+  tp1-nvfp4-dflash-cookbook-default)
+    extra+=(--mem-fraction-static 0.85
+      --mamba-full-memory-ratio 6.63 --max-running-requests 1 --speculative-algorithm DFLASH
+      --speculative-draft-model-path "$draft_model_container_path"
+      --speculative-num-draft-tokens 8)
+    ;;
+  tp1-nvfp4-dflash-cookbook-lazy)
+    extra+=(--mem-fraction-static 0.85
+      --mamba-full-memory-ratio 6.12 --max-running-requests 1 --speculative-algorithm DFLASH
+      --speculative-draft-model-path "$draft_model_container_path"
+      --speculative-num-draft-tokens 8)
+    ;;
   tp1-bf16-eagle-candidate)
     extra+=(--mem-fraction-static 0.80 --speculative-algorithm EAGLE --speculative-num-steps 3
       --speculative-eagle-topk 1 --speculative-num-draft-tokens 4)
@@ -125,7 +148,7 @@ command -v docker >/dev/null 2>&1 || die "docker is required to launch"
 mounts=(-v "$model_mount_src:$model_mount_target:ro" -v "$hf_cache:/hf-cache:ro"
   -v "$cache_dir/torch:/cache/torch" -v "$cache_dir/triton:/cache/triton" -v "$cache_dir/flashinfer:/cache/flashinfer")
 case "$profile" in
-  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate) mounts+=( -v "$draft_model_mount_src:$draft_model_mount_target:ro" ) ;;
+  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate|tp1-nvfp4-dflash-cookbook-default|tp1-nvfp4-dflash-cookbook-lazy) mounts+=( -v "$draft_model_mount_src:$draft_model_mount_target:ro" ) ;;
 esac
 # Docker's --gpus parser requires the device request's CSV to retain literal
 # quotes; without them, a multi-GPU value is parsed as both Count and DeviceIDs.

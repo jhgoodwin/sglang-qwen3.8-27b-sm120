@@ -85,6 +85,21 @@ the existing DSpark snapshot. It uses FlashInfer, FP32 Mamba SSM,
 profile is explicitly unqualified and defaults to GPU 0 on host port 11443;
 the launcher performs no model downloads.
 
+The current-cookbook NVFP4 panel is separate from the historical candidates.
+`tp1-nvfp4-cookbook-no-spec` is the no-speculation control on port 11444;
+`tp1-nvfp4-dflash-cookbook-default` and
+`tp1-nvfp4-dflash-cookbook-lazy` are DFlash2 variants on ports 11445 and
+11446. All use the pinned NVFP4 target, FlashInfer, 2,048-token chunking,
+0.85 static memory, explicit FP8 KV, FP32 Mamba state, and one running request.
+The DFlash profiles require the local `incoai/Qwen3.8-27B-DFlash2` snapshot in
+`DRAFT_MODEL_DIR` and use eight draft tokens. The generated recipe's Mamba
+ratios are emitted directly: 2.55 for the no-spec `extra_buffer` control, 6.63
+for documented `extra_buffer`, and 6.12 for `extra_buffer_lazy`. These ratios
+are the runtime control; corresponding 8,192+1,024 C1 worksheet cache-size
+values (5, 5, and 4) are metadata, not redundant launcher flags. The profiles
+remain unqualified until matched correctness and repeated throughput runs
+complete.
+
 The cache directory is derived from cache schema v1, image digest, source
 revision, and profile unless `CACHE_DIR` is set. Torch, Triton, and FlashInfer
 caches are separate and must not be shared across image/source ABI changes.

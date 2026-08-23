@@ -119,3 +119,20 @@
   default timeout for long coding traces, and use one monotonic clock for all
   elapsed-rate calculations; missing usage or first-token timing is reported
   as an explicit unavailable metric.
+
+## Current generated cookbook panel (2026-08-23)
+
+- Scope: add separate current-recipe NVFP4 no-spec and DFlash2 launch profiles;
+  historical profiles and measurements remain immutable.
+- Correction: the source-install pin `1cf2b8c54d81802abc15dcf23a29b9cc687bc01e`
+  does not include DFlash. The current generated recipe at main
+  `d1af3c89233c475fc1bf11939d86787e6cddd58c` does include the DFlash2 path.
+- Decision: emit the generated recipe's Mamba controls directly: ratio 2.55
+  for no-spec `extra_buffer`, 6.63 for default DFlash `extra_buffer`, and 6.12
+  for high-throughput DFlash `extra_buffer_lazy`. The C1 cache-size values are
+  recorded as metadata only to avoid redundant ratio and explicit-cache flags.
+  All three profiles pin one running request, FP8 KV, FP32 Mamba state,
+  FlashInfer, 2,048-token chunking, and 0.85 static memory.
+- Runtime: the current panel uses the verified host-compatible overlay and
+  base image already locked above; its recipe and source revisions are tracked
+  under `runtime_variants.current-cookbook-qwen38-27b`.

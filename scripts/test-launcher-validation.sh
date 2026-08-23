@@ -148,6 +148,37 @@ grep -Fq -- "-v $tmp/dflash-repo:/models/Qwen3.8-27B-DFlash2-cache:ro" "$tmp/dfl
 grep -Fq -- '--speculative-draft-model-path /models/Qwen3.8-27B-DFlash2-cache/snapshots/revision-dflash' "$tmp/dflash-snapshot.args"
 echo "DFlash snapshot symlink-preserving mount passed"
 
+run_current_cookbook() {
+  local profile=$1 expected_port=$2 expected_strategy=$3 expected_ratio=$4 speculative=$5
+  CAPTURE="$tmp/$profile.args" env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp/model" HF_CACHE_HUB="$tmp/hf" \
+    DRAFT_MODEL_DIR="$tmp/draft" IMAGE="$valid" CACHE_DIR="$tmp/cache-$profile" \
+    PROFILE="$profile" CAPTURE="$tmp/$profile.args" "$repo/serve.sh"
+  grep -Fq -- "--name sglang-qwen38-27b-$profile" "$tmp/$profile.args"
+  grep -Fq -- "--gpus \"device=0\"" "$tmp/$profile.args"
+  grep -Fxq -- '"device=0"' "$tmp/$profile.args"
+  grep -Fq -- "-p 127.0.0.1:$expected_port:8000" "$tmp/$profile.args"
+  grep -Fq -- '--model-path /models/Qwen3.8-27B' "$tmp/$profile.args"
+  grep -Fq -- '--attention-backend flashinfer' "$tmp/$profile.args"
+  grep -Fq -- '--chunked-prefill-size 2048' "$tmp/$profile.args"
+  grep -Fq -- '--mem-fraction-static 0.85' "$tmp/$profile.args"
+  grep -Fq -- "--mamba-radix-cache-strategy $expected_strategy" "$tmp/$profile.args"
+  grep -Fq -- "--mamba-full-memory-ratio $expected_ratio" "$tmp/$profile.args"
+  grep -Fq -- '--max-running-requests 1' "$tmp/$profile.args"
+  grep -Fq -- '--kv-cache-dtype fp8_e4m3' "$tmp/$profile.args"
+  if [[ "$speculative" == 1 ]]; then
+    grep -Fq -- "-v $tmp/draft:/models/Qwen3.8-27B-DFlash2:ro" "$tmp/$profile.args"
+    grep -Fq -- '--speculative-algorithm DFLASH' "$tmp/$profile.args"
+    grep -Fq -- '--speculative-draft-model-path /models/Qwen3.8-27B-DFlash2' "$tmp/$profile.args"
+    grep -Fq -- '--speculative-num-draft-tokens 8' "$tmp/$profile.args"
+  else
+    ! grep -Fq -- '--speculative-' "$tmp/$profile.args"
+  fi
+}
+run_current_cookbook tp1-nvfp4-cookbook-no-spec 11444 extra_buffer 2.55 0
+run_current_cookbook tp1-nvfp4-dflash-cookbook-default 11445 extra_buffer 6.63 1
+run_current_cookbook tp1-nvfp4-dflash-cookbook-lazy 11446 extra_buffer_lazy 6.12 1
+echo "current cookbook NVFP4 profile args and isolated defaults passed"
+
 run_eagle_candidate() {
   local profile=$1 expected_gpu=$2 expected_port=$3 expected_name=$4 expected_tp=$5
   CAPTURE="$tmp/$profile.args" env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp/model" HF_CACHE_HUB="$tmp/hf" \

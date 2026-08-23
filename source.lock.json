@@ -67,5 +67,16 @@
     "cuda_version": "13.0",
     "sgl_kernel_version": "0.4.6.post1"
   },
+  "runtime_variants": {
+    "current-cookbook-qwen38-27b": {
+      "recipe_url": "https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-27B",
+      "recipe_main_revision": "d1af3c89233c475fc1bf11939d86787e6cddd58c",
+      "source_install_revision": "1cf2b8c54d81802abc15dcf23a29b9cc687bc01e",
+      "base_image": "lmsysorg/sglang@sha256:616a3e97f45191af975896cfa644279096cb31bd408a071c2e99ca7209c3cafe",
+      "overlay_image": "sglang-qwen38-27b-sm120@sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d",
+      "sglang_revision": "5f55db35e926d50676f75b812640ea2410b0fe0e",
+      "status": "verified_host_compatible_overlay"
+    }
+  },
   "updated": "2026-08-23"
 }

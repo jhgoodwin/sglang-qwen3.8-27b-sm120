@@ -47,6 +47,27 @@
       "alias": "tp1-bf16-safe", "status": "unqualified_candidate", "port": 11442, "container_name": "sglang-qwen38-27b-tp1-bf16-dflash-candidate",
       "draft_model": "incoai/Qwen3.8-27B-DFlash2", "draft_model_dir_env": "DRAFT_MODEL_DIR",
       "extra_args": ["--speculative-algorithm", "DFLASH", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DFlash2", "--speculative-num-draft-tokens", "8"]
+    },
+    "tp1-nvfp4-cookbook-no-spec": {
+      "status": "unqualified_current_cookbook_candidate", "tp": 1, "gpus": "0", "context_length": 262144,
+      "port": 11444, "container_name": "sglang-qwen38-27b-tp1-nvfp4-cookbook-no-spec",
+      "model_repository": "RadixArk/Qwen3.8-27B-NVFP4", "mamba_cache_strategy": "extra_buffer",
+      "mamba_cache_size": 5, "mamba_full_memory_ratio": 2.55,
+      "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.85", "--mamba-radix-cache-strategy", "extra_buffer", "--mamba-full-memory-ratio", "2.55", "--max-running-requests", "1"]
+    },
+    "tp1-nvfp4-dflash-cookbook-default": {
+      "status": "unqualified_current_cookbook_candidate", "tp": 1, "gpus": "0", "context_length": 262144,
+      "port": 11445, "container_name": "sglang-qwen38-27b-tp1-nvfp4-dflash-cookbook-default",
+      "model_repository": "RadixArk/Qwen3.8-27B-NVFP4", "draft_model": "incoai/Qwen3.8-27B-DFlash2", "draft_model_dir_env": "DRAFT_MODEL_DIR",
+      "mamba_cache_strategy": "extra_buffer", "mamba_cache_size": 5, "mamba_full_memory_ratio": 6.63,
+      "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.85", "--mamba-radix-cache-strategy", "extra_buffer", "--mamba-full-memory-ratio", "6.63", "--max-running-requests", "1", "--speculative-algorithm", "DFLASH", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DFlash2", "--speculative-num-draft-tokens", "8"]
+    },
+    "tp1-nvfp4-dflash-cookbook-lazy": {
+      "status": "unqualified_current_cookbook_candidate", "tp": 1, "gpus": "0", "context_length": 262144,
+      "port": 11446, "container_name": "sglang-qwen38-27b-tp1-nvfp4-dflash-cookbook-lazy",
+      "model_repository": "RadixArk/Qwen3.8-27B-NVFP4", "draft_model": "incoai/Qwen3.8-27B-DFlash2", "draft_model_dir_env": "DRAFT_MODEL_DIR",
+      "mamba_cache_strategy": "extra_buffer_lazy", "mamba_cache_size": 4, "mamba_full_memory_ratio": 6.12,
+      "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.85", "--mamba-radix-cache-strategy", "extra_buffer_lazy", "--mamba-full-memory-ratio", "6.12", "--max-running-requests", "1", "--speculative-algorithm", "DFLASH", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DFlash2", "--speculative-num-draft-tokens", "8"]
     }
   }
 }
