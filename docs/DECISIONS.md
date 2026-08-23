@@ -136,3 +136,18 @@
 - Runtime: the current panel uses the verified host-compatible overlay and
   base image already locked above; its recipe and source revisions are tracked
   under `runtime_variants.current-cookbook-qwen38-27b`.
+
+## Current cookbook benchmark outcome (2026-08-23)
+
+- Scope: record the measured outcome of the current generated NVFP4+DFlash2
+  panel without turning exploratory speed into a production qualification.
+- Decision: advance current `extra_buffer_lazy` as the top measured C1 and
+  coding-prompt candidate in the tested panel: 261.063 median output tok/s
+  (259.867 / 263.355 bracket) and 176.915923 aggregate coding-prompt
+  completion tok/s across nine requests. This supersedes the historical
+  130.3991 one-GPU decode-leader claim for the tested recipe, while retaining
+  that original result as a historical comparison.
+- Consequence: the candidate remains unqualified for C2/C4, 100K+ capacity,
+  mixed-load starvation, vision, soak stability, and coding-quality gates.
+  The operational comparison records token-count and time differences but
+  makes no task-quality or quantization-causality claim.

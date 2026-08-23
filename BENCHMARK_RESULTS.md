@@ -38,12 +38,10 @@ output-throughput speedups are:
 - TP2 EAGLE vs TP1 EAGLE: **1.655x** (+65.5%).
 - TP2 EAGLE vs TP1 base: **4.916x** (+391.6%).
 
-The best measured decode rate is therefore **130.399 sustained output tokens/s
-on TP1 BF16+DFlash2**, the one-GPU leader. TP2 EAGLE/MTP reached 123.0399
-output tokens/s, and TP1 NVFP4+DSpark reached 117.641652 output tokens/s.
-These ranks are sustained matched-run measurements: TP1 BF16+DFlash2 is
-first overall and first among one-GPU runs, TP2 EAGLE/MTP is second overall,
-and TP1 NVFP4+DSpark is third overall and second among one-GPU runs.
+The historical best in this original panel was **130.399 sustained output
+tokens/s on TP1 BF16+DFlash2** (one-GPU leader at that time). The current
+cookbook rerun below supersedes that historical rank for the tested recipe;
+the original rows remain immutable for comparison.
 
 TP1 DSpark used the BF16 target checkpoint with BF16 draft revision
 `85ef153be924f17ce4bf62726954eeaa4a73e854`, block size 7 and verify window 8,
@@ -153,6 +151,70 @@ Raw operational artifacts: [BF16+DFlash2 rep1](bench/results/20260823T000000Z-tp
 [BF16+DSpark rep1](bench/results/20260823-tp1-bf16-dspark-operational-prompts-rep1.json),
 [rep2](bench/results/20260823-tp1-bf16-dspark-operational-prompts-rep2.json), and
 [rep3](bench/results/20260823-tp1-bf16-dspark-operational-prompts-rep3.json).
+
+## Current cookbook NVFP4+DFlash2 rerun (2026-08-23)
+
+This is a separately versioned rerun of the generated current cookbook recipe;
+historical rows above are preserved and are not overwritten. The documentation
+recipe was main revision `d1af3c89233c475fc1bf11939d86787e6cddd58c` (the source
+install pin `1cf2b8c54d81802abc15dcf23a29b9cc687bc01e` does not contain the
+DFlash path). The official base image digest was
+`sha256:616a3e97f45191af975896cfa644279096cb31bd408a071c2e99ca7209c3cafe`;
+the host-compatible overlay was `sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d`,
+with SGLang source `5f55db35e926d50676f75b812640ea2410b0fe0e` as recorded in
+the runtime lock. The target was NVFP4 revision
+`319f741cce68d7914884900c138a1fbb70a42f30`; the DFlash2 draft was revision
+`dedf8df68adfb1afeaf7b7480c0a0243108177b4`. The no-spec profile used no
+draft. All tests used TP1 on GPU 0, context 131,072,
+explicit `--kv-cache-dtype fp8_e4m3`, and one running request. The observed
+server sampling defaults were temperature 1.0, top-k 20, and top-p 0.95;
+the operational suite used `reasoning_effort=medium` and `max_tokens=32768`.
+
+The matched panel used exact 8,192 input and 1,024 output tokens, seed 101,
+streaming, C1, and one warmup plus five measured requests per repetition.
+Each profile below has three independent repetitions (45 measured requests
+total across the three profiles), 5,120 output tokens per repetition, and
+zero errors.
+
+| profile | output tok/s min / median / max | accept length | result |
+|---|---:|---:|---|
+| current no-spec | 64.174 / 64.461 / 65.261 | — | completed 15/15 |
+| current DFlash2 default | 252.087 / 253.074 / 255.697 | 7.1735 | completed 15/15 |
+| current DFlash2 `extra_buffer_lazy` | **259.867 / 261.063 / 263.355** | 7.5265 | completed 15/15 |
+
+The lazy median is 4.0499x current no-spec, 1.0316x current default, and
+2.0020x the historical one-GPU leader (130.3991 tok/s). These are decode
+throughput comparisons only; they do not establish output quality or causal
+effects from quantization.
+
+The lazy profile was then run against the three coding prompts three times
+each. All nine requests returned HTTP 200 with `finish_reason=stop`; no
+128K-cap rerun was needed because no request hit the 32,768-token limit.
+Values are min / median / max across repetitions (times in seconds).
+
+| prompt | completion tokens | reasoning tokens | visible tokens | wall time | end-to-end tok/s |
+|---|---:|---:|---:|---:|---:|
+| django-varbit | 10,959 / 17,730 / 18,694 | 9,449 / 14,819 / 17,111 | 1,510 / 1,583 / 2,911 | 57.339 / 89.338 / 93.871 | 191.126 / 198.459 / 199.145 |
+| flappy-bird | 4,146 / 4,526 / 5,171 | 17 / 19 / 30 | 4,116 / 4,509 / 5,152 | 17.992 / 18.251 / 21.343 | 230.431 / 242.279 / 247.988 |
+| slack-clone | 18,493 / 23,281 / 28,408 | 8,547 / 13,103 / 18,619 | 9,789 / 9,946 / 10,178 | 114.194 / 141.744 / 188.698 | 150.547 / 161.944 / 164.247 |
+
+Across the nine lazy requests: 131,408 completion tokens (81,714 reasoning,
+49,694 visible) in 742.770906 seconds, or 176.915923 aggregate end-to-end
+tokens/s. Compared arithmetically with the historical NVFP4+DSpark suite
+(142.147 tok/s; 118,452 completion, 64,647 reasoning, 53,805 visible,
+833.309 s), lazy is 1.244602x faster and takes 0.891179x the wall time,
+while generating 1.109378x as many completion tokens, 1.264003x as many
+reasoning tokens, and 0.923594x as many visible tokens. Compared with the
+historical BF16+DFlash2 suite (86.048 tok/s; 119,786 completion, 63,418
+reasoning, 56,368 visible, 1,392.081 s), lazy is 2.056011x faster and takes
+0.533569x the wall time, while generating 1.097023x as many completion
+tokens, 1.288499x as many reasoning tokens, and 0.881599x as many visible
+tokens. These arithmetic comparisons are task-time/throughput observations,
+not task-quality or quantization conclusions.
+
+Raw current-panel artifacts: [benchmark command](bench/results/current-cookbook-20260823/benchmark-command.txt),
+[all matched-panel artifacts](bench/results/current-cookbook-20260823/), and
+[all lazy operational repetitions](bench/results/current-cookbook-20260823/operational/).
 
 ## Long-context measurements
 

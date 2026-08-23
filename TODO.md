@@ -352,6 +352,17 @@ startup/thermal variance.
 - [ ] Repeat the full coding, tool-call, long-output, and recurrent-state gates.
   Specifically resolve or work around SGLang issue #35150 before recommending
   DSpark; float32 state reportedly delays but may not eliminate divergence.
+- [x] Add and run the versioned current generated cookbook panel (main recipe
+  `d1af3c89233c475fc1bf11939d86787e6cddd58c`, with the source-install pin
+  `1cf2b8c54d81802abc15dcf23a29b9cc687bc01e` recorded as lacking DFlash),
+  preserving historical measurements and pinning the base/overlay, model, and
+  draft identities. The TP1 C1 panel used three repetitions per profile and
+  recorded no-spec, DFlash2 default, and `extra_buffer_lazy` results.
+- [x] Revalidate the current `extra_buffer_lazy` candidate on all three coding
+  prompts with three repetitions, medium reasoning, default sampling, and
+  `max_tokens=32768`; record reasoning/visible token counts and completion
+  times. All nine requests stopped naturally, so no context-safe 128K rerun
+  was required.
 - [ ] Test prefix-cache hits, cancellation, mixed prompt lengths, and independent
   restarts. Disable speculation in the production recommendation if correctness
   is not convincingly equivalent to the base decoder.
