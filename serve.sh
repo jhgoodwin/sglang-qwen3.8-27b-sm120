@@ -50,9 +50,9 @@ die() { echo "serve.sh: $*" >&2; exit 2; }
 
 case "$profile" in
   tp1-bf16-safe) default_tp=1; default_gpus=0; default_port=11436; default_name=sglang-qwen38-27b-tp1-bf16-safe ;;
-  tp1-bf16-production) default_tp=1; default_gpus=0; default_port=11436; default_name=sglang-qwen38-27b-tp1-bf16-production ;;
+  tp1-bf16-production) default_tp=1; default_gpus=0; default_port=11436; default_name=qwen3.8-27b-sglang ;;
   tp2-bf16-safe) default_tp=2; default_gpus=0,1; default_port=11436; default_name=sglang-qwen38-27b-tp2-bf16-safe ;;
-  tp2-bf16-production) default_tp=2; default_gpus=0,1; default_port=11436; default_name=sglang-qwen38-27b-tp2-bf16-production ;;
+  tp2-bf16-production) default_tp=2; default_gpus=0,1; default_port=11436; default_name=qwen3.8-27b-sglang ;;
   replica0) default_tp=1; default_gpus=0; default_port=11436; default_name=sglang-qwen38-27b-replica0 ;;
   replica1) default_tp=1; default_gpus=1; default_port=11437; default_name=sglang-qwen38-27b-replica1 ;;
   tp1-bf16-dspark-candidate) default_tp=1; default_gpus=0; default_port=11438; default_name=sglang-qwen38-27b-tp1-bf16-dspark-candidate ;;

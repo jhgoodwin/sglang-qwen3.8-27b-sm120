@@ -38,9 +38,9 @@ assert dflash["extra_args"] == ["--speculative-algorithm", "DFLASH", "--speculat
 assert "127.0.0.1" in (root / "RUN.md").read_text()
 expected_defaults = {
     "tp1-bf16-safe": ("0", 11436, "sglang-qwen38-27b-tp1-bf16-safe"),
-    "tp1-bf16-production": ("0", 11436, "sglang-qwen38-27b-tp1-bf16-production"),
+    "tp1-bf16-production": ("0", 11436, "qwen3.8-27b-sglang"),
     "tp2-bf16-safe": ("0,1", 11436, "sglang-qwen38-27b-tp2-bf16-safe"),
-    "tp2-bf16-production": ("0,1", 11436, "sglang-qwen38-27b-tp2-bf16-production"),
+    "tp2-bf16-production": ("0,1", 11436, "qwen3.8-27b-sglang"),
     "replica0": ("0", 11436, "sglang-qwen38-27b-replica0"),
     "replica1": ("1", 11437, "sglang-qwen38-27b-replica1"),
 }

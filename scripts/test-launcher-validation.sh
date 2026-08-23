@@ -34,9 +34,9 @@ run_profile() {
 }
 
 run_profile tp1-bf16-safe 0 11436 sglang-qwen38-27b-tp1-bf16-safe 1
-run_profile tp1-bf16-production 0 11436 sglang-qwen38-27b-tp1-bf16-production 1
+run_profile tp1-bf16-production 0 11436 qwen3.8-27b-sglang 1
 run_profile tp2-bf16-safe 0,1 11436 sglang-qwen38-27b-tp2-bf16-safe 2
-run_profile tp2-bf16-production 0,1 11436 sglang-qwen38-27b-tp2-bf16-production 2
+run_profile tp2-bf16-production 0,1 11436 qwen3.8-27b-sglang 2
 run_profile replica0 0 11436 sglang-qwen38-27b-replica0 1
 run_profile replica1 1 11437 sglang-qwen38-27b-replica1 1
 echo "all named profile docker defaults passed"

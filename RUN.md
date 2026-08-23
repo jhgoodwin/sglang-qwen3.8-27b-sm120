@@ -10,6 +10,10 @@ verified `registry/name:tag@sha256:<64 hex>` and record it in
 The default host endpoint is `127.0.0.1:11436` and maps to container port
 8000. SGLang listens on `0.0.0.0` only inside the container so Docker port
 publishing works; the host-side publish remains restricted to loopback.
+The TP1 and TP2 production profiles use the stable Docker container name
+`qwen3.8-27b-sglang`. Docker accepts periods in container names. Candidate,
+safe, and replica profiles retain profile-specific names for experiment
+isolation; `CONTAINER_NAME` remains an explicit override.
 
 ## Capture the host and immutable inputs
 
