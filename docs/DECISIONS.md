@@ -46,3 +46,76 @@
   resolved capacity, strict flags/counters, and occupancy matching the cell;
   analysis rejects mixed cell IDs or process metadata shapes. The checked-in
   manifest is tested for exact equality with a freshly generated manifest.
+
+## Host-compatible runtime overlay (2026-08-23)
+
+- Scope: run the official Qwen3.8 SGLang image on this host, whose virtual CPU
+  does not expose AVX, while preserving the cookbook CUDA and model stack.
+- Decision: build the pinned `Containerfile` overlay on official base image
+  `sha256:616a3e97f45191af975896cfa644279096cb31bd408a071c2e99ca7209c3cafe`
+  and disable only the eager `nixl_ep` import. Qualifying runs use overlay image
+  `sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d`.
+- Reason: the unmodified image aborts during Python import when UCX initializes
+  an AVX instruction. Qwen3.8-27B is dense and does not use NIXL MoE token
+  dispatch; the overlay's `ServerArgs` import and live model boot both pass.
+- Consequence: NIXL MoE dispatch is unavailable in this image. Rebuild and
+  repin the overlay whenever its base image or patch changes.
+
+## In-checkpoint EAGLE candidates (2026-08-23)
+
+- Scope: expose reproducible TP1 and TP2 EAGLE launch candidates using the
+  already-mounted Qwen3.8-27B checkpoint.
+- Decision: `tp1-bf16-eagle-candidate` and `tp2-bf16-eagle-candidate` inherit
+  the safe BF16/FP8-KV, float32-SSM, FlashInfer, and `extra_buffer_lazy`
+  settings, then add exactly EAGLE/3 steps/top-k 1/4 draft tokens. TP2 also
+  uses `--disable-custom-all-reduce` because custom all-reduce failed during
+  startup on this host. Neither profile hardcodes an experiment-only request
+  limit; capacity flags remain overridable.
+- Consequence: both remain `unqualified_candidate` profiles until matched
+  no-spec correctness, capacity, and stability evidence exists.
+
+## Local DFlash2 candidate (2026-08-23)
+
+- Scope: expose one reproducible TP1 DFlash2 candidate using the locally pinned
+  `incoai/Qwen3.8-27B-DFlash2` snapshot without resolving or downloading it.
+- Decision: `tp1-bf16-dflash-candidate` inherits the safe BF16 target settings,
+  requires `DRAFT_MODEL_DIR`, mounts the draft repository root read-only, and
+  adds exactly `--speculative-algorithm DFLASH`, the internal draft path, and
+  `--speculative-num-draft-tokens 8`.
+- Reason: the canonical snapshot uses relative blob symlinks; mounting its
+  repository root preserves those links and keeps the launch reproducible.
+- Consequence: the profile remains `unqualified_candidate` until matched
+  no-spec correctness, capacity, and stability evidence exists.
+
+## Local NVFP4 DSpark candidate (2026-08-23)
+
+- Scope: expose one reproducible TP1 candidate using the pinned
+  `RadixArk/Qwen3.8-27B-NVFP4` checkpoint and local DSpark draft.
+- Decision: `tp1-nvfp4-dspark-candidate` requires `DRAFT_MODEL_DIR`, mounts the
+  draft repository root read-only, and adds DSpark with block size 7,
+  unquantized draft loading, FlashInfer draft attention, FP32 Mamba SSM, and
+  `extra_buffer_lazy`. It uses a unique default port/name and remains
+  `unqualified_candidate`.
+- Reason: the NVFP4 snapshot metadata identifies modelopt `MIXED_PRECISION`
+  weights with FP8 KV quantization; exact revisions and three shard sizes are
+  recorded in `source.lock.json` for matched experiments.
+- Consequence: no production or winner claim is implied until matched NVFP4
+  no-spec correctness, capacity, and stability evidence exists.
+
+## Coding prompt runner (2026-08-23)
+
+- Scope: provide a reusable operational runner for the existing coding prompt
+  directory; this does not define a new corpus or execute model output.
+- Decision: enumerate `.txt` files in bytewise filename order and send each
+  unchanged as one user message to Chat Completions. Requests default to
+  `max_tokens=32768`, keep model/server thinking and sampling defaults intact,
+  and omit temperature, top-p, top-k, and reasoning-effort overrides.
+- Decision: prefer SSE streaming, retain the complete event stream and
+  reconstructed content/reasoning, and record both end-to-end and post-first
+  token completion rates when usage exposes completion-token counts. Prompt
+  SHA-256, exact request bodies, server-info response, HTTP errors, and
+  speculative-looking usage fields are retained in the machine-readable run.
+  Streaming requests explicitly request final usage, use a 1,800-second
+  default timeout for long coding traces, and use one monotonic clock for all
+  elapsed-rate calculations; missing usage or first-token timing is reported
+  as an explicit unavailable metric.

@@ -1,0 +1,26 @@
+diff --git a/python/sglang/srt/layers/moe/token_dispatcher/nixl.py b/python/sglang/srt/layers/moe/token_dispatcher/nixl.py
+index 1111111..2222222 100644
+--- a/python/sglang/srt/layers/moe/token_dispatcher/nixl.py
++++ b/python/sglang/srt/layers/moe/token_dispatcher/nixl.py
+@@ -28,15 +28,8 @@
+-try:
+-    from nixl_ep import Buffer
+-
+-    use_nixl = True
+-except ImportError:
+-    use_nixl = False
+-
+-try:
+-    from nixl_ep import topk_idx_t as NIXL_EP_TOPK_INDICES_DTYPE
+-except ImportError:
+-    NIXL_EP_TOPK_INDICES_DTYPE = torch.int64
+-
+-assert isinstance(NIXL_EP_TOPK_INDICES_DTYPE, torch.dtype)
++# This host exposes an AVX-less virtual CPU. Importing nixl_ep eagerly loads
++# its AVX-built UCX dependency, which aborts before dense models can start.
++# Qwen3.8 is dense and does not use the NIXL MoE dispatch backend, so keep the
++# optional backend disabled without importing it. This mirrors the proven
++# host compatibility guard in the existing DeepSeek no-AVX image.
++use_nixl = False
+
+ logger = logging.getLogger(__name__)

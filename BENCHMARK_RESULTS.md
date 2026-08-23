@@ -1,0 +1,201 @@
+# Benchmark results
+
+These are matched exploratory C1 decode runs: `random-ids`, 8,192 input
+tokens, 1,024 forced output tokens, five measured requests plus one warmup,
+seed 101, streaming, and `max_running_requests=1`. The server used the pinned
+host-compatible SGLang overlay, FlashInfer, FP8 KV, float32 SSM, and a
+131,072-token configured context. The benchmark JSON files are intentionally
+kept in the ignored `bench/results/` tree; the paths below are the raw
+evidence.
+
+| configuration | GPUs | input tok/s | output tok/s | mean TTFT | mean TPOT / ITL | p99 ITL | max ITL | accept length | status |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| TP1 base | GPU 0 | 200.2759 | 25.0345 | 1,748.69 ms | 38.2665 ms | 39.2322 ms | 75.6475 ms | — | operational no-spec oracle |
+| TP2 base | GPUs 0,1 | 367.7918 | 45.9740 | 1,328.41 ms | 20.4694 ms | 21.1335 ms | 40.4393 ms | — | operational no-spec comparison |
+| TP1 EAGLE/MTP | GPU 0 | 594.6573 | 74.3322 | 1,828.22 ms | 11.6781 ms | 21.0195 ms | 46.3710 ms | 3.8684 | one-GPU operational candidate |
+| TP1 DSpark | GPU 0 | — | 89.1607 | 1,795.83 ms | 9.4634 ms | 43.1050 ms | 44.3600 ms | 4.49224 | one-GPU exploratory candidate |
+| TP2 EAGLE/MTP | GPUs 0,1 | 984.3189 | 123.0399 | 1,360.97 ms | 6.8040 ms | 12.1222 ms | 48.2276 ms | 3.8841 | absolute speed leader; exploratory |
+| TP1 BF16+DFlash2 | GPU 0 | 1,043.19 | **130.40** | 1,798.77 ms | 5.91 ms | 14.75 ms | 46.04 ms | 7.2444 | one-GPU raw leader; candidate only |
+| TP1 NVFP4+DSpark | GPU 0 | — | 117.6417 | 874.65 ms | 7.6499 ms | 21.0525 ms | 36.9900 ms | 2.66458 | one-GPU candidate; exploratory |
+
+All seven matched configurations completed five requests and exactly 5,120 output tokens with no
+reported request errors. The TP1 NVFP4+DSpark run lasted 43.522 s, completed
+5/5 requests, and had a separate sampled peak of 390 output tokens/s. Relative
+output-throughput speedups are:
+
+- TP2 base vs TP1 base: **1.836x** (+83.6%).
+- TP1 EAGLE vs TP1 base: **2.969x** (+196.9%).
+- TP1 DSpark vs TP1 base: **3.5615x** (+256.1514%).
+- TP1 DSpark vs TP1 EAGLE: **1.1995x** (+19.9490%).
+- TP1 DSpark vs TP2 EAGLE: **0.7246x** (-27.5351%).
+- TP1 BF16+DFlash2 vs TP1 base: **5.208814x** (+420.8814%).
+- TP1 BF16+DFlash2 vs TP1 EAGLE: **1.754288x** (+75.4288%).
+- TP1 BF16+DFlash2 vs TP1 DSpark: **1.462528x** (+46.2528%).
+- TP1 BF16+DFlash2 vs TP2 EAGLE: **1.059819x** (+5.9819%).
+- TP1 NVFP4+DSpark vs TP2 EAGLE: **0.9553x** (-4.4674%).
+- TP1 NVFP4+DSpark vs TP1 BF16+DFlash2: **0.9025x** (-9.7833%).
+- TP2 EAGLE vs TP2 base: **2.676x** (+167.6%).
+- TP2 EAGLE vs TP1 EAGLE: **1.655x** (+65.5%).
+- TP2 EAGLE vs TP1 base: **4.916x** (+391.6%).
+
+The best measured decode rate is therefore **130.399 sustained output tokens/s
+on TP1 BF16+DFlash2**, the one-GPU leader. TP2 EAGLE/MTP reached 123.0399
+output tokens/s, and TP1 NVFP4+DSpark reached 117.641652 output tokens/s.
+These ranks are sustained matched-run measurements: TP1 BF16+DFlash2 is
+first overall and first among one-GPU runs, TP2 EAGLE/MTP is second overall,
+and TP1 NVFP4+DSpark is third overall and second among one-GPU runs.
+
+TP1 DSpark used the BF16 target checkpoint with BF16 draft revision
+`85ef153be924f17ce4bf62726954eeaa4a73e854`, block size 7 and verify window 8,
+FP32 SSM, and 12.25 GB free after graph capture. Its reported peak output
+throughput was 182 tok/s; this is a peak sample, not sustained throughput.
+The upstream state-drift warning remains applicable to this DSpark result.
+
+TP1 BF16+DFlash2 used the BF16 target checkpoint with draft revision
+`dedf8df68adfb1afeaf7b7480c0a0243108177b4`, block size 8, FP32 SSM, and
+16.96 GB free after graph capture. The run lasted 39.264 s, completed 5/5
+requests with zero errors and 1,024 output tokens each. Its separate peak
+output throughput was 183 tok/s, not sustained throughput.
+The fixed smoke semantic paths were identical. Random output matched TP1 base
+and TP1 EAGLE on 4/5 requests and TP1 DSpark on 5/5 requests. This remains a
+candidate measurement, not a production qualification or correctness
+conclusion.
+
+Raw artifacts:
+
+- [TP1 base](bench/results/20260823T1342Z-tp1-bf16-safe-decode/tp1-c1-8k-1024-seed101.json)
+- [TP2 base](bench/results/20260823T1352Z-tp2-bf16-safe-decode/tp2-c1-8k-1024-seed101.json)
+- [TP2 EAGLE/MTP](bench/results/20260823T1357Z-tp2-mtp-decode/tp2-mtp-c1-8k-1024-seed101.json)
+- [TP1 EAGLE/MTP](bench/results/20260823T1401Z-tp1-mtp-decode/tp1-mtp-c1-8k-1024-seed101.json)
+- [TP1 DSpark](bench/results/20260823T1413Z-tp1-dspark-decode/tp1-dspark-c1-8k-1024-seed101.json)
+- [TP1 BF16+DFlash2](bench/results/20260823T1422Z-tp1-dflash-decode/tp1-dflash-c1-8k-1024-seed101.json)
+- [TP1 BF16+DFlash2 telemetry](bench/results/20260823T1422Z-tp1-dflash-decode/tp1-dflash-c1-8k-1024-seed101-telemetry.json)
+- [TP1 NVFP4+DSpark](bench/results/20260823T145116Z-tp1-nvfp4-dspark-decode.json)
+
+## Operational coding prompts
+
+The three unchanged prompts in `bench/prompts/` were each run
+three times on TP1 BF16+DFlash2, TP1 BF16+DSpark, and TP1 NVFP4+DSpark
+(nine requests per configuration). Requests used `reasoning_effort=medium`, `max_tokens=32768`,
+streaming with usage included, and omitted temperature, top-p, and top-k so
+the server/model sampling defaults applied. All requests naturally stopped;
+none was forced to a token length. Completion tokens include reasoning tokens;
+visible tokens are `completion_tokens - reasoning_tokens`. E2E throughput is
+completion tokens divided by wall-clock completion time, including first-token
+latency.
+
+For each cell below, values are min / median / max across the three
+repetitions. Times are seconds, token counts are tokens, and throughput is
+completion tokens/s.
+
+| prompt | BF16+DFlash2 completion time | completion tokens | reasoning tokens | visible tokens | e2e throughput |
+|---|---:|---:|---:|---:|---:|
+| django-varbit | 99.751 / 151.821 / 152.740 | 9,488 / 14,012 / 14,965 | 7,287 / 11,925 / 12,040 | 2,087 / 2,201 / 2,925 | 92.293 / 95.117 / 97.977 |
+| flappy-bird | 37.077 / 47.497 / 47.789 | 4,085 / 5,635 / 5,714 | 15 / 23 / 30 | 4,062 / 5,620 / 5,684 | 110.176 / 118.638 / 119.568 |
+| slack-clone | 220.407 / 291.865 / 343.134 | 17,708 / 22,835 / 25,344 | 5,368 / 11,877 / 14,853 | 10,491 / 10,958 / 12,340 | 73.860 / 78.238 / 80.342 |
+
+| prompt | NVFP4+DSpark completion time | completion tokens | reasoning tokens | visible tokens | e2e throughput |
+|---|---:|---:|---:|---:|---:|
+| django-varbit | 65.605 / 101.066 / 131.756 | 10,285 / 16,238 / 22,192 | 6,722 / 12,215 / 20,388 | 1,804 / 3,563 / 4,023 | 156.772 / 160.668 / 168.432 |
+| flappy-bird | 24.882 / 28.441 / 29.110 | 4,435 / 5,002 / 5,010 | 16 / 26 / 43 | 4,419 / 4,967 / 4,976 | 172.105 / 175.875 / 178.245 |
+| slack-clone | 95.429 / 166.536 / 190.485 | 12,888 / 19,586 / 22,816 | 2,585 / 10,300 / 12,352 | 9,286 / 10,303 / 10,464 | 117.608 / 119.778 / 135.054 |
+
+| prompt | BF16+DSpark completion time | completion tokens | reasoning tokens | visible tokens | e2e throughput |
+|---|---:|---:|---:|---:|---:|
+| django-varbit | 132.031 / 203.842 / 221.886 | 10,368 / 15,133 / 17,214 | 6,927 / 12,270 / 15,040 | 2,174 / 2,863 / 3,441 | 74.239 / 77.580 / 78.527 |
+| flappy-bird | 50.638 / 57.755 / 65.442 | 4,290 / 4,997 / 5,829 | 18 / 26 / 33 | 4,257 / 4,979 / 5,803 | 84.719 / 86.521 / 89.071 |
+| slack-clone | 321.438 / 325.047 / 492.948 | 18,692 / 20,483 / 29,521 | 7,283 / 9,240 / 19,919 | 9,602 / 11,243 / 11,409 | 58.151 / 59.887 / 63.016 |
+
+| configuration | requests | total completion tokens | total reasoning tokens | total visible tokens | total time | aggregate e2e tok/s |
+|---|---:|---:|---:|---:|---:|---:|
+| BF16+DFlash2 | 9 | 119,786 | 63,418 | 56,368 | 1,392.081 s | 86.048 |
+| BF16+DSpark | 9 | 126,527 | 70,756 | 55,771 | 1,871.027 s | 67.624 |
+| NVFP4+DSpark | 9 | 118,452 | 64,647 | 53,805 | 833.309 s | 142.147 |
+
+Across this operational sample, NVFP4+DSpark completed 1.651941x as many
+completion tokens per wall-clock second in aggregate, with 1.113653% fewer total
+completion tokens and 1.9% more reasoning tokens than BF16+DFlash2. The
+per-prompt distributions show that token-count variation is material: for
+example, slack-clone completion ranged from 12,888 to 22,816 tokens on
+NVFP4+DSpark and from 17,708 to 25,344 on BF16+DFlash2. This is a task-time
+comparison, not a quantization-only causal test: the configurations differ in
+both target precision (BF16 versus NVFP4 mixed precision) and speculative
+draft/runtime (DFlash2 versus DSpark).
+
+BF16+DSpark versus NVFP4+DSpark is the quantization-controlled comparison:
+both use the same DSpark draft snapshot and block-7/8-token settings. Across
+these three stochastic repetitions per prompt, NVFP4+DSpark used 55.462474%
+less wall time (equivalently, BF16+DSpark used 124.529760% more), 6.382037%
+more completion tokens, 8.633897% more reasoning
+tokens, and 3.525130% more visible tokens; NVFP4+DSpark's aggregate
+throughput was 2.102002x higher. Median completion-time reductions for
+NVFP4+DSpark were 50.419669% (django-varbit), 50.755923% (flappy-bird), and
+48.765445% (slack-clone). This isolates the target-precision difference in
+the runtime setup, but remains a three-sample timing comparison and does not
+establish output quality equivalence.
+
+The operational completion-validity contract is HTTP 200, no request error,
+and `finish_reason=stop`. A `length` finish is truncated/incomplete and is
+excluded or explicitly flagged, never counted as success. All 27 requests in
+these nine raw files satisfied the contract; the maximum observed completion
+was 29,521 tokens, below the 32,768-token cap. If a future run reaches
+`length`, preserve that outcome and rerun with a context-safe cap near the
+128K model ceiling after subtracting prompt and chat-template tokens. This is
+distinct from the matched random-ID decode contract, which intentionally
+forces a fixed output length.
+
+Raw operational artifacts: [BF16+DFlash2 rep1](bench/results/20260823T000000Z-tp1-dflash-operational-prompts.json),
+[rep2](bench/results/20260823T000100Z-tp1-dflash-operational-prompts-rep2.json),
+[rep3](bench/results/20260823T000200Z-tp1-dflash-operational-prompts-rep3.json),
+[NVFP4+DSpark rep1](bench/results/20260823-tp1-nvfp4-dspark-operational-prompts.json),
+[rep2](bench/results/20260823-tp1-nvfp4-dspark-operational-prompts-rep2.json), and
+[rep3](bench/results/20260823-tp1-nvfp4-dspark-operational-prompts-rep3.json),
+[BF16+DSpark rep1](bench/results/20260823-tp1-bf16-dspark-operational-prompts-rep1.json),
+[rep2](bench/results/20260823-tp1-bf16-dspark-operational-prompts-rep2.json), and
+[rep3](bench/results/20260823-tp1-bf16-dspark-operational-prompts-rep3.json).
+
+## Long-context measurements
+
+These are separate TP1 EAGLE/MTP C1 measurements at 100,000 input tokens;
+they are not part of the matched 8K/1K table above.
+
+| cache / shape | measured | duration | client output tok/s | TTFT | mean TPOT | p99 ITL | max ITL | accept length | result |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| cold, 100K in / 256 out | 1 request | 45.1438 s | 5.6708 | 41,681.88 ms | 13.5617 ms (~73.74 tok/s steady reciprocal) | 35.0847 ms | 50.4215 ms | 3.675 | completed; no OOM/truncation |
+| hot, 100K in / 1,024 out | 1 request | — | 76.64 | 294.87 ms | 12.77 ms | 22.88 ms | 94.65 ms | 3.88 | successful; not cold-publishable |
+
+The cold run was confirmed by the server log with `#cached-token 0`. Its
+configured context was 131,072 and `max_total_num_tokens` was 550,706.
+The 5.6708 tok/s client aggregate includes the long prefill; the reciprocal
+of steady-state mean TPOT is approximately 73.74 tok/s.
+
+## Qualification caveats
+
+These numbers are not a production qualification. GPU telemetry was sampled,
+but these are samples rather than full-run aggregates: TP1 MTP showed GPU0 at
+299–300 W, 99% SM, approximately 80–81 C, and 77,742 MB framebuffer use, with
+GPU1 at 2 MB and approximately 7 W; TP2 base showed approximately 299–300 W
+each, 99% SM, and 80,814/80,094 MB; TP2 MTP showed approximately 300 W each,
+97–98% SM, and 81,688/80,968 MB. The 100K+ capacity envelope beyond the
+reported shape, C2/C4 behavior, soak stability, mixed prefill/decode
+starvation, coding corpus, and native-context gates remain unresolved.
+
+EAGLE/MTP acceptance length is reported by SGLang (3.8684 TP1 and 3.8841
+TP2); DSpark reports 4.49224 and the no-speculation rows have no
+acceptance-length metric. The DSpark run completed 5/5 requests, produced
+5,120 output tokens in 57.4244 s, and reported five empty error strings. Raw
+random-ID generated text is not a semantic quality test: TP1 DSpark matched
+TP1 base and TP1 EAGLE on 4/5 random outputs. The fixed smoke semantic outputs
+(text, streaming, structured tool call, reasoning control, and image request)
+matched. This is evidence of operational consistency, not a declaration of
+production correctness or model-quality equivalence.
+
+The DSpark telemetry available for that run consists of idle samples only and
+must not be interpreted as load telemetry. DFlash2 telemetry sampled GPU0 at
+299–300 W, 64–69 C, 98–100% SM, 27–89% memory utilization, and clocks of
+1567–1912 MHz; GPU1 was idle. These are samples, not full-run aggregates.
+
+The first TP2 launch attempt failed during startup in the custom all-reduce
+path. The successful TP2 runs required the NCCL fallback; this is part of the
+runtime condition for the TP2 measurements and should remain explicit in any
+reproduction.

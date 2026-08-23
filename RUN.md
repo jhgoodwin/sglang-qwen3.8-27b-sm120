@@ -8,7 +8,8 @@ verified `registry/name:tag@sha256:<64 hex>` and record it in
 `PROFILE=tp1-bf16-safe ./serve.sh`.
 
 The default host endpoint is `127.0.0.1:11436` and maps to container port
-8000.
+8000. SGLang listens on `0.0.0.0` only inside the container so Docker port
+publishing works; the host-side publish remains restricted to loopback.
 
 ## Capture the host and immutable inputs
 
@@ -53,6 +54,32 @@ read-only. The draft revision is unresolved until captured in the source
 lock. Do not advance either candidate without correctness, capacity, and
 stability gates, including saving the server's resolved
 `max_running_requests` value.
+
+The opt-in `tp1-bf16-eagle-candidate` and `tp2-bf16-eagle-candidate` profiles
+are also unqualified, in-checkpoint EAGLE candidates. They inherit the safe
+BF16/FP8-KV, float32-SSM, FlashInfer, and `extra_buffer_lazy` settings and add
+exactly three draft steps, top-k 1, and four draft tokens. The TP2 candidate
+also disables custom all-reduce for this host. Capacity knobs remain
+user-overridable through `SGLANG_EXTRA_ARGS`; these profiles do not impose an
+experiment-only request limit. Require deterministic correctness and capacity
+evidence before treating either candidate as a winner.
+
+The opt-in `tp1-bf16-dflash-candidate` is an unqualified DFlash2 candidate.
+It retains the safe BF16 target settings and adds exactly `DFLASH`, eight draft
+tokens, and the local `incoai/Qwen3.8-27B-DFlash2` draft path. Set
+`DRAFT_MODEL_DIR` to the existing canonical snapshot
+`/data/models/models--incoai--Qwen3.8-27B-DFlash2/snapshots/dedf8df68adfb1afeaf7b7480c0a0243108177b4`;
+the launcher mounts its repository root read-only so blob symlinks remain
+valid and never downloads the draft. Require matched no-spec correctness,
+capacity, and stability evidence before interpreting this candidate.
+
+The opt-in `tp1-nvfp4-dspark-candidate` uses the pinned
+`RadixArk/Qwen3.8-27B-NVFP4` snapshot from `source.lock.json` with local DSpark
+draft weights. Set `MODEL_DIR` to that NVFP4 snapshot and `DRAFT_MODEL_DIR` to
+the existing DSpark snapshot. It uses FlashInfer, FP32 Mamba SSM,
+`extra_buffer_lazy`, DSpark block size 7, and unquantized draft loading. The
+profile is explicitly unqualified and defaults to GPU 0 on host port 11443;
+the launcher performs no model downloads.
 
 The cache directory is derived from cache schema v1, image digest, source
 revision, and profile unless `CACHE_DIR` is set. Torch, Triton, and FlashInfer

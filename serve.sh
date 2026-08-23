@@ -15,6 +15,32 @@ name=${CONTAINER_NAME:-}
 cache_dir=${CACHE_DIR:-}
 source_revision=${SOURCE_REVISION:-unresolved}
 draft_model_dir=${DRAFT_MODEL_DIR:-}
+draft_model_mount_src=$draft_model_dir
+draft_model_mount_name=Qwen3.8-27B-DSpark
+case "$profile" in
+  tp1-bf16-dflash-candidate) draft_model_mount_name=Qwen3.8-27B-DFlash2 ;;
+esac
+draft_model_mount_target=/models/$draft_model_mount_name
+draft_model_container_path=$draft_model_mount_target
+
+# Hugging Face snapshots contain relative symlinks into the repository-level
+# blobs/ directory. Mounting only snapshots/<revision> breaks those links in
+# the container, so canonical cache snapshots are mounted with their repo root.
+model_mount_src=$model_dir
+model_mount_target=/models/Qwen3.8-27B
+model_container_path=$model_mount_target
+if [[ "$(basename "$(dirname "$model_dir")")" == snapshots ]]; then
+  model_revision=$(basename "$model_dir")
+  model_mount_src=$(dirname "$(dirname "$model_dir")")
+  model_mount_target=/models/Qwen3.8-27B-cache
+  model_container_path="$model_mount_target/snapshots/$model_revision"
+fi
+if [[ -n "$draft_model_dir" && "$(basename "$(dirname "$draft_model_dir")")" == snapshots ]]; then
+  draft_model_revision=$(basename "$draft_model_dir")
+  draft_model_mount_src=$(dirname "$(dirname "$draft_model_dir")")
+  draft_model_mount_target=/models/${draft_model_mount_name}-cache
+  draft_model_container_path="$draft_model_mount_target/snapshots/$draft_model_revision"
+fi
 
 die() { echo "serve.sh: $*" >&2; exit 2; }
 [[ -d "$model_dir" ]] || die "model path does not exist: $model_dir (set MODEL_DIR; input is mounted read-only)"
@@ -30,14 +56,18 @@ case "$profile" in
   replica0) default_tp=1; default_gpus=0; default_port=11436; default_name=sglang-qwen38-27b-replica0 ;;
   replica1) default_tp=1; default_gpus=1; default_port=11437; default_name=sglang-qwen38-27b-replica1 ;;
   tp1-bf16-dspark-candidate) default_tp=1; default_gpus=0; default_port=11438; default_name=sglang-qwen38-27b-tp1-bf16-dspark-candidate ;;
+  tp1-nvfp4-dspark-candidate) default_tp=1; default_gpus=0; default_port=11443; default_name=sglang-qwen38-27b-tp1-nvfp4-dspark-candidate ;;
   tp2-bf16-dspark-candidate) default_tp=2; default_gpus=0,1; default_port=11439; default_name=sglang-qwen38-27b-tp2-bf16-dspark-candidate ;;
+  tp1-bf16-dflash-candidate) default_tp=1; default_gpus=0; default_port=11442; default_name=sglang-qwen38-27b-tp1-bf16-dflash-candidate ;;
+  tp1-bf16-eagle-candidate) default_tp=1; default_gpus=0; default_port=11440; default_name=sglang-qwen38-27b-tp1-bf16-eagle-candidate ;;
+  tp2-bf16-eagle-candidate) default_tp=2; default_gpus=0,1; default_port=11441; default_name=sglang-qwen38-27b-tp2-bf16-eagle-candidate ;;
   *) die "unknown PROFILE '$profile' (see profiles.json)" ;;
 esac
 port=${port:-$default_port}; name=${name:-$default_name}
 [[ "$port" =~ ^[0-9]+$ && "$port" -ge 1 && "$port" -le 65535 ]] || die "invalid PORT: $port"
 case "$profile" in
-  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate)
-    [[ -n "$draft_model_dir" ]] || die "DRAFT_MODEL_DIR is required for $profile (use an existing local DSpark snapshot; no download is performed)"
+  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate)
+    [[ -n "$draft_model_dir" ]] || die "DRAFT_MODEL_DIR is required for $profile (use an existing local draft snapshot; no download is performed)"
     [[ -d "$draft_model_dir" ]] || die "draft model path does not exist: $draft_model_dir (set DRAFT_MODEL_DIR; input is mounted read-only)"
     ;;
 esac
@@ -57,27 +87,52 @@ fi
 if [[ -z "$cache_dir" ]]; then digest=${image##*@sha256:}; cache_dir="/data/models/sglang-qwen38-27b-cache-v1-${digest:0:12}-${source_revision:0:12}-${profile}"; fi
 mkdir -p "$cache_dir"
 
-extra=(--attention-backend flashinfer --chunked-prefill-size 2048 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --mamba-ssm-dtype float32)
+extra=(--attention-backend flashinfer --chunked-prefill-size 2048 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --mamba-ssm-dtype float32 --mamba-radix-cache-strategy extra_buffer_lazy)
 case "$profile" in
   tp1-bf16-safe|tp1-bf16-production|tp2-bf16-safe|tp2-bf16-production|replica0|replica1) extra+=(--mem-fraction-static 0.80) ;;
   tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate)
     extra+=(--mem-fraction-static 0.85 --speculative-algorithm DSPARK
-      --speculative-draft-model-path /models/Qwen3.8-27B-DSpark
+      --speculative-draft-model-path "$draft_model_container_path"
       --speculative-draft-attention-backend flashinfer
       --mamba-radix-cache-strategy extra_buffer_lazy)
+    ;;
+  tp1-nvfp4-dspark-candidate)
+    extra+=(--mem-fraction-static 0.85 --speculative-algorithm DSPARK
+      --speculative-draft-model-path "$draft_model_container_path"
+      --speculative-draft-attention-backend flashinfer
+      --speculative-dspark-block-size 7
+      --speculative-draft-model-quantization unquant
+      --mamba-radix-cache-strategy extra_buffer_lazy)
+    ;;
+  tp1-bf16-dflash-candidate)
+    extra+=(--mem-fraction-static 0.80 --speculative-algorithm DFLASH
+      --speculative-draft-model-path "$draft_model_container_path"
+      --speculative-num-draft-tokens 8)
+    ;;
+  tp1-bf16-eagle-candidate)
+    extra+=(--mem-fraction-static 0.80 --speculative-algorithm EAGLE --speculative-num-steps 3
+      --speculative-eagle-topk 1 --speculative-num-draft-tokens 4)
+    ;;
+  tp2-bf16-eagle-candidate)
+    extra+=(--mem-fraction-static 0.80 --speculative-algorithm EAGLE --speculative-num-steps 3
+      --speculative-eagle-topk 1 --speculative-num-draft-tokens 4
+      --disable-custom-all-reduce)
     ;;
 esac
 if [[ -n "${SGLANG_EXTRA_ARGS:-}" ]]; then read -r -a user_extra <<< "$SGLANG_EXTRA_ARGS"; extra+=("${user_extra[@]}"); fi
 
 command -v docker >/dev/null 2>&1 || die "docker is required to launch"
-mounts=(-v "$model_dir:/models/Qwen3.8-27B:ro" -v "$hf_cache:/hf-cache:ro"
+mounts=(-v "$model_mount_src:$model_mount_target:ro" -v "$hf_cache:/hf-cache:ro"
   -v "$cache_dir/torch:/cache/torch" -v "$cache_dir/triton:/cache/triton" -v "$cache_dir/flashinfer:/cache/flashinfer")
 case "$profile" in
-  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate) mounts+=( -v "$draft_model_dir:/models/Qwen3.8-27B-DSpark:ro" ) ;;
+  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate) mounts+=( -v "$draft_model_mount_src:$draft_model_mount_target:ro" ) ;;
 esac
-docker run --rm --name "$name" --gpus "device=$gpus" --shm-size=16g --ulimit memlock=-1 --ulimit stack=67108864 \
+# Docker's --gpus parser requires the device request's CSV to retain literal
+# quotes; without them, a multi-GPU value is parsed as both Count and DeviceIDs.
+gpu_request="\"device=$gpus\""
+docker run --rm --name "$name" --gpus "$gpu_request" --shm-size=16g --ulimit memlock=-1 --ulimit stack=67108864 \
   -p "127.0.0.1:${port}:${container_port}" \
   "${mounts[@]}" \
   -e HF_HOME=/hf-cache -e TORCHINDUCTOR_CACHE_DIR=/cache/torch -e TRITON_CACHE_DIR=/cache/triton -e FLASHINFER_WORKSPACE_DIR=/cache/flashinfer \
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
-  "$image" python3 -m sglang.launch_server --model-path /models/Qwen3.8-27B --trust-remote-code --kv-cache-dtype fp8_e4m3 --context-length "$context" --tp-size "$tp" --port "$container_port" "${extra[@]}"
+  "$image" python3 -m sglang.launch_server --model-path "$model_container_path" --trust-remote-code --kv-cache-dtype fp8_e4m3 --context-length "$context" --tp-size "$tp" --host 0.0.0.0 --port "$container_port" "${extra[@]}"

@@ -4,8 +4,8 @@
   "model": "Qwen/Qwen3.8-27B",
   "cache_schema": "v1",
   "image": {
-    "reference": "UNRESOLVED@sha256:REPLACE_AFTER_IMAGE_VERIFICATION",
-    "status": "unresolved",
-    "reason": "No image digest has been verified in this repository yet."
+    "reference": "sglang-qwen38-27b-sm120@sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d",
+    "base_reference": "lmsysorg/sglang@sha256:616a3e97f45191af975896cfa644279096cb31bd408a071c2e99ca7209c3cafe",
+    "status": "verified_noavx_overlay"
   }
 }

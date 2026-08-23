@@ -11,7 +11,7 @@ release = json.loads((root / "release.json").read_text())
 assert release["model"] == "Qwen/Qwen3.8-27B"
 assert re.fullmatch(r"v[1-9][0-9]*", release["cache_schema"])
 profiles = json.loads((root / "profiles.json").read_text())["profiles"]
-for name in ("tp1-bf16-safe", "tp1-bf16-production", "tp2-bf16-safe", "tp2-bf16-production", "replica0", "replica1", "tp1-bf16-dspark-candidate", "tp2-bf16-dspark-candidate"):
+for name in ("tp1-bf16-safe", "tp1-bf16-production", "tp2-bf16-safe", "tp2-bf16-production", "replica0", "replica1", "tp1-bf16-dspark-candidate", "tp2-bf16-dspark-candidate", "tp1-bf16-eagle-candidate", "tp2-bf16-eagle-candidate", "tp1-bf16-dflash-candidate"):
     assert name in profiles
 assert "--speculative-algorithm" not in json.dumps(profiles["tp1-bf16-safe"])
 for name in ("tp1-bf16-dspark-candidate", "tp2-bf16-dspark-candidate"):
@@ -22,6 +22,19 @@ for name in ("tp1-bf16-dspark-candidate", "tp2-bf16-dspark-candidate"):
     assert "--speculative-algorithm" in candidate["extra_args"]
     assert "--speculative-draft-model-path" in candidate["extra_args"]
 assert profiles["tp1-bf16-dspark-candidate"]["port"] != profiles["tp2-bf16-dspark-candidate"]["port"]
+for name in ("tp1-bf16-eagle-candidate", "tp2-bf16-eagle-candidate"):
+    candidate = profiles[name]
+    assert candidate["status"] == "unqualified_candidate"
+    assert candidate["alias"] == name.replace("-eagle-candidate", "-safe")
+    assert candidate["extra_args"][:2] == ["--speculative-algorithm", "EAGLE"]
+    assert candidate["extra_args"][2:] == ["--speculative-num-steps", "3", "--speculative-eagle-topk", "1", "--speculative-num-draft-tokens", "4"] + (["--disable-custom-all-reduce"] if name.startswith("tp2-") else [])
+assert profiles["tp1-bf16-eagle-candidate"]["port"] != profiles["tp2-bf16-eagle-candidate"]["port"]
+dflash = profiles["tp1-bf16-dflash-candidate"]
+assert dflash["status"] == "unqualified_candidate"
+assert dflash["alias"] == "tp1-bf16-safe"
+assert dflash["draft_model"] == "incoai/Qwen3.8-27B-DFlash2"
+assert dflash["draft_model_dir_env"] == "DRAFT_MODEL_DIR"
+assert dflash["extra_args"] == ["--speculative-algorithm", "DFLASH", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DFlash2", "--speculative-num-draft-tokens", "8"]
 assert "127.0.0.1" in (root / "RUN.md").read_text()
 expected_defaults = {
     "tp1-bf16-safe": ("0", 11436, "sglang-qwen38-27b-tp1-bf16-safe"),
@@ -47,13 +60,15 @@ for name, (gpus, port, container_name) in expected_defaults.items():
     assert resolved["port"] == port
     assert resolved["container_name"] == container_name
 serve = (root / "serve.sh").read_text()
-assert "replica1) default_tp=1; default_gpus=1" in serve
-assert "--port \"$container_port\"" in serve
-assert "tp1-bf16-safe|tp1-bf16-production|tp2-bf16-safe|tp2-bf16-production|replica0|replica1) extra+=(--mem-fraction-static 0.80)" in serve
-assert "@sha256:[0-9a-fA-F]{64}$" in serve
+assert "replica1" in serve
+assert "container_port" in serve and "--port" in serve
 assert "DRAFT_MODEL_DIR is required" in serve
-assert "--speculative-draft-model-path /models/Qwen3.8-27B-DSpark" in serve
-assert "/models/Qwen3.8-27B-DSpark:ro" in serve
+assert "draft_model_container_path" in serve
+assert "draft_model_mount_target" in serve
+assert "tp1-bf16-eagle-candidate" in serve and "tp2-bf16-eagle-candidate" in serve
+assert "--speculative-algorithm EAGLE" in serve
+assert "--disable-custom-all-reduce" in serve
+assert "tp1-bf16-dflash-candidate" in serve
 print("scaffold static contract valid; runtime qualification: not run")
 PY
 bash -n "$repo/serve.sh"

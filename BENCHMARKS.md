@@ -22,6 +22,24 @@ number of live requests. These are predictions only: fixed model/graph/runtime
 memory, measured free VRAM, and headroom must be recorded from a server run.
 No profile is claimed to fit 96 GB without those measurements.
 
+The in-checkpoint EAGLE candidates (`tp1-bf16-eagle-candidate` and
+`tp2-bf16-eagle-candidate`) must be benchmarked against the corresponding safe
+no-spec profile with identical prompts, token limits, and cache settings.
+Report acceptance only after deterministic correctness, resolved capacity,
+and stability evidence is retained; their names do not imply qualification.
+
+The `tp1-bf16-dflash-candidate` uses the local DFlash2 draft with exactly eight
+draft tokens and must be benchmarked against `tp1-bf16-safe` using identical
+requests, limits, and cache settings. It is explicitly unqualified; retain
+the raw launch identity, draft snapshot identity, acceptance/capacity data,
+and stability evidence separately from the no-spec baseline.
+
+The `tp1-nvfp4-dspark-candidate` is a separate, unqualified quantization and
+speculation candidate. Compare it with the matched no-spec NVFP4 launch using
+the same request panel, and retain model/draft revisions, DSpark block size 7,
+draft quantization mode `unquant`, resolved capacity, and raw acceptance and
+stability evidence.
+
 Store runs under `bench/results/<UTC>-<profile>/` with `metadata.json`,
 `responses.json`, and `server-info.json` when supported. Metadata must include
 exact image/source/model identities, GPU list, TP, context, and port. Use

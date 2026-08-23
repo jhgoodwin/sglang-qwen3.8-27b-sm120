@@ -2,18 +2,70 @@
   "schema": 1,
   "model": {
     "repository": "Qwen/Qwen3.8-27B",
-    "revision": "UNRESOLVED",
-    "snapshot_path": "/data/models/Qwen3.8-27B",
-    "status": "unresolved",
-    "reason": "Resolve the completed local Hugging Face snapshot before qualification."
+    "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "snapshot_path": "/data/models/models--Qwen--Qwen3.8-27B/snapshots/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "weight_shards": 18,
+    "status": "verified"
+  },
+  "model_variants": {
+    "nvfp4": {
+      "repository": "RadixArk/Qwen3.8-27B-NVFP4",
+      "revision": "319f741cce68d7914884900c138a1fbb70a42f30",
+      "snapshot_path": "/data/models/models--RadixArk--Qwen3.8-27B-NVFP4/snapshots/319f741cce68d7914884900c138a1fbb70a42f30",
+      "weight_shards": 3,
+      "shard_bytes": [9965652544, 9985757064, 1970287672],
+      "downloaded_total_bytes": 21921697280,
+      "downloaded_weight_bytes": 21921697280,
+      "quantization": {
+        "producer": "modelopt",
+        "quant_algo": "MIXED_PRECISION",
+        "kv_cache_quant_algo": "FP8"
+      },
+      "snapshot_status": "verified",
+      "lock_status": "no_lock_files",
+      "incomplete_status": "none_found"
+    }
+  },
+  "draft_models": {
+    "DSpark": {
+      "repository": "RadixArk/Qwen3.8-27B-DSpark",
+      "revision": "85ef153be924f17ce4bf62726954eeaa4a73e854",
+      "snapshot_path": "/data/models/models--RadixArk--Qwen3.8-27B-DSpark/snapshots/85ef153be924f17ce4bf62726954eeaa4a73e854",
+      "snapshot_ref": "/data/models/models--RadixArk--Qwen3.8-27B-DSpark/refs/main",
+      "model_safetensors": {
+        "path": "model.safetensors",
+        "bytes": 2718576122,
+        "sha256": "9d26d5e637551c244d543c67c790bd0947f360e005c569e5851a185ffe692786"
+      },
+      "snapshot_status": "verified",
+      "lock_status": "no_lock_files",
+      "incomplete_status": "none_found"
+    },
+    "DFlash2": {
+      "repository": "incoai/Qwen3.8-27B-DFlash2",
+      "revision": "dedf8df68adfb1afeaf7b7480c0a0243108177b4",
+      "snapshot_path": "/data/models/models--incoai--Qwen3.8-27B-DFlash2/snapshots/dedf8df68adfb1afeaf7b7480c0a0243108177b4",
+      "snapshot_ref": "/data/models/models--incoai--Qwen3.8-27B-DFlash2/refs/main",
+      "model_safetensors": {
+        "path": "model.safetensors",
+        "bytes": 3848817896,
+        "sha256": "67fc76d68dc5a9415511a4f394ef744d67510cd20e93b37cc2cc7d28e4bab65c"
+      },
+      "snapshot_status": "verified",
+      "lock_status": "no_lock_files",
+      "incomplete_status": "none_found"
+    }
   },
   "runtime": {
-    "sglang_revision": "UNRESOLVED",
-    "image_digest": "UNRESOLVED",
-    "flashinfer_version": "UNRESOLVED",
-    "pytorch_version": "UNRESOLVED",
-    "cuda_version": "UNRESOLVED",
-    "sgl_kernel_version": "UNRESOLVED"
+    "sglang_revision": "5f55db35e926d50676f75b812640ea2410b0fe0e",
+    "image": "sglang-qwen38-27b-sm120@sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d",
+    "image_digest": "sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d",
+    "base_image": "lmsysorg/sglang@sha256:616a3e97f45191af975896cfa644279096cb31bd408a071c2e99ca7209c3cafe",
+    "overlay_patch": "patches/sglang/0001-noavx-disable-nixl-ep-import.patch",
+    "flashinfer_version": "0.6.17",
+    "pytorch_version": "2.13.0+cu130",
+    "cuda_version": "13.0",
+    "sgl_kernel_version": "0.4.6.post1"
   },
   "updated": "2026-08-23"
 }

@@ -152,26 +152,26 @@ Reuse the useful shape of `~/src/sglang-deepseek-v4-flash-sm120`, but do not
 copy its DeepSeek-specific kernels, patches, environment flags, context limit,
 or benchmark conclusions.
 
-- [ ] Add a checked launcher with explicit, validated inputs for model path,
+- [x] Add a checked launcher with explicit, validated inputs for model path,
   cache path, image digest, GPU list, TP size, context length, port, and profile.
-- [ ] Default to host `127.0.0.1:11436`, publishing to the serving container's
+- [x] Default to host `127.0.0.1:11436`, publishing to the serving container's
   internal port (initially 8000). Retain an explicit `PORT` override for tests,
   but use 11436 in the production wrapper, health checks, examples, and client
   configuration. Document authentication before exposing beyond localhost.
-- [ ] Detect and clearly report a port collision. DeepSeek and Qwen cannot both
+- [x] Detect and clearly report a port collision. DeepSeek and Qwen cannot both
   bind host port 11436 simultaneously; do not silently stop or replace the other
   service.
-- [ ] Mount the model read-only and use persistent, image-specific Torch/Triton/
+- [x] Mount the model read-only and use persistent, image-specific Torch/Triton/
   FlashInfer compilation caches.
 - [ ] Use adequate shared memory, unlimited memlock, and the expandable CUDA
   allocator, then verify each is still useful for the selected release.
-- [ ] Validate that the number of visible GPUs equals the requested TP size.
-- [ ] Add named profiles rather than one opaque command, initially:
+- [x] Validate that the number of visible GPUs equals the requested TP size.
+- [x] Add named profiles rather than one opaque command, initially:
   - `tp1-bf16-safe`: no speculation, float32 SSM, conservative capacity;
   - `tp1-bf16-production`: the winner after qualification;
   - `tp2-bf16-safe` and `tp2-bf16-production`;
   - optional `replica0`/`replica1` TP1 profiles on separate ports.
-- [ ] Start from this cookbook-derived BF16/DSpark candidate, but do **not** make
+- [x] Start from this cookbook-derived BF16/DSpark candidate, but do **not** make
   speculation the safe baseline:
 
   ```text
@@ -190,9 +190,9 @@ or benchmark conclusions.
   --mamba-ssm-dtype float32
   ```
 
-- [ ] Add health, `/v1/models`, deterministic text, structured tool-call, and
+- [x] Add health, `/v1/models`, deterministic text, structured tool-call, and
   image smoke tests. Save server arguments and resolved capacity with results.
-- [ ] Add release/source lock files, a cache schema, `README.md`, `RUN.md`,
+- [x] Add release/source lock files, a cache schema, `README.md`, `RUN.md`,
   `BENCHMARKS.md`, and a machine-readable `bench/results/` convention.
 
 Deliverable: a cold-machine launch path whose first request succeeds without
@@ -202,12 +202,12 @@ manual edits and whose exact source identities can be reconstructed.
 
 ### 2A. Boot and memory accounting
 
-- [ ] Boot BF16 weights on GPU 0 with no speculative decoding, float32 SSM,
+- [x] Boot BF16 weights on GPU 0 with no speculative decoding, float32 SSM,
   FlashInfer attention, a 2,048 prefill chunk, C1 graph capture, and a deliberately
   conservative context/capacity setting.
 - [ ] Save startup logs and measure weights, vision tower, CUDA graphs, non-torch
   allocations, KV pool, GDN state pool, and free safety margin separately.
-- [ ] Confirm the reported model id, tokenizer/chat template, native context,
+- [x] Confirm the reported model id, tokenizer/chat template, native context,
   `max_req_input_len`, `max_total_num_tokens`, and resolved running-request cap.
 - [ ] Set and verify `--context-length` explicitly. Confirm the server enforces
   input plus maximum output within it, rejects rather than silently truncates an
@@ -218,7 +218,7 @@ manual edits and whose exact source identities can be reconstructed.
 
 ### 2B. API and coding quality gate
 
-- [ ] Verify streaming and non-streaming Chat Completions.
+- [x] Verify streaming and non-streaming Chat Completions.
 - [ ] Verify thinking enabled/disabled, supported `reasoning_effort` values,
   `preserve_thinking`, finish reasons, stop handling, and maximum output behavior.
 - [ ] Verify single and parallel tool calls are emitted as structured
@@ -326,8 +326,8 @@ startup/thermal variance.
 
 ### 4D. Speculative decoding
 
-- [ ] Establish no-speculation results first.
-- [ ] Test the in-checkpoint MTP recipe:
+- [x] Establish no-speculation results first.
+- [x] Test the in-checkpoint MTP recipe:
 
   ```text
   --speculative-algorithm EAGLE
@@ -344,7 +344,7 @@ startup/thermal variance.
   BF16 weights, FP8 KV, float32 SSM, DSpark, `extra_buffer_lazy`, and FlashInfer
   target/draft attention—at C1/C2/C4 with 100K and 128K input shapes. Treat it as
   a candidate subject to the same correctness gates, not as the oracle.
-- [ ] Test DFlash2 only on a source/image revision where it is supported and
+- [x] Test DFlash2 only on a source/image revision where it is supported and
   stable; pin its draft revision and eight-token block size.
 - [ ] For each method, report decode forward passes/s separately from useful
   output tokens/s and accepted tokens/step. A path-dependent acceptance gain is
@@ -521,9 +521,9 @@ scores; no silent corruption; stable mixed text/image service at target load.
   behavior in explicit hot-cache cells.
 - [ ] Monitor GPU metrics at a fixed sampling rate. Keep compilation and model
   load time out of warm inference results, but publish cold startup separately.
-- [ ] Store raw responses privately when needed for grading; publish summaries
+- [x] Store raw responses privately when needed for grading; publish summaries
   without secrets, proprietary prompts, or sensitive source code.
-- [ ] Record failures and surprising results instead of deleting them.
+- [x] Record failures and surprising results instead of deleting them.
 
 ## Phase 8: acceptance criteria and final artifacts
 
