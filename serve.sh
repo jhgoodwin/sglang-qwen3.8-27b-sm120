@@ -70,8 +70,8 @@ case "$profile" in
   tp1-nvfp4-cookbook-no-spec) default_tp=1; default_gpus=0; default_port=11444; default_name=sglang-qwen38-27b-tp1-nvfp4-cookbook-no-spec ;;
   tp1-nvfp4-dflash-cookbook-default) default_tp=1; default_gpus=0; default_port=11445; default_name=sglang-qwen38-27b-tp1-nvfp4-dflash-cookbook-default ;;
   tp1-nvfp4-dflash-cookbook-lazy) default_tp=1; default_gpus=0; default_port=11446; default_name=sglang-qwen38-27b-tp1-nvfp4-dflash-cookbook-lazy ;;
-  c2) default_tp=1; default_gpus=0; default_port=11447; default_name=qwen3.8-27b-sglang; profile_image=qwen38-c2c3-evidence@sha256:a63bbe5a4a65a7d54de1329333825f38eac6a79f40efb86c497cf8f78ace5967 ;;
-  c3) default_tp=1; default_gpus=0; default_port=11448; default_name=qwen3.8-27b-sglang; profile_image=qwen38-c2c3-evidence@sha256:a63bbe5a4a65a7d54de1329333825f38eac6a79f40efb86c497cf8f78ace5967 ;;
+  c2) default_tp=1; default_gpus=0; default_port=11447; default_name=qwen3.8-27b-sglang; profile_image=qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb ;;
+  c3) default_tp=1; default_gpus=0; default_port=11448; default_name=qwen3.8-27b-sglang; profile_image=qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb ;;
   tp1-bf16-eagle-candidate) default_tp=1; default_gpus=0; default_port=11440; default_name=sglang-qwen38-27b-tp1-bf16-eagle-candidate ;;
   tp2-bf16-eagle-candidate) default_tp=2; default_gpus=0,1; default_port=11441; default_name=sglang-qwen38-27b-tp2-bf16-eagle-candidate ;;
   *) die "unknown PROFILE '$profile' (see profiles.json)" ;;

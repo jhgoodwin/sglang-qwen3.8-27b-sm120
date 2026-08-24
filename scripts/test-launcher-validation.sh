@@ -229,7 +229,7 @@ chmod +x "$tmp/bin/ss"
 
 # Queued C2/C3 profiles use the pinned evidence overlay and reserve an
 # operator-owned JSONL target without changing the existing profile contract.
-c2_image='qwen38-c2c3-evidence@sha256:a63bbe5a4a65a7d54de1329333825f38eac6a79f40efb86c497cf8f78ace5967'
+c2_image='qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb'
 run_c2c3() {
   local profile=$1 port=$2 max_running=$3 mamba_size=$4
   local evidence="$tmp/evidence-$profile"
@@ -324,9 +324,11 @@ assert variant["patch_application"] == {
 assert variant["verification"] == {
     "source_revision_label": "5f55db35e926d50676f75b812640ea2410b0fe0e",
     "evidence_label": "opt in with SGLANG_C2C3_EVIDENCE_PATH",
-    "no_gpu_import": "runtime_evidence NullRecorder",
+    "no_gpu_import": "campaign_evidence startup helpers imported",
+    "no_gpu_disabled_headers": {},
+    "no_gpu_enabled_headers": {"x-request-id": "__sglang_c2c3_startup_warmup__"},
 }
-assert variant["status"] == "rebuilt_runtime_bridge_no_gpu_import_verified"
+assert variant["status"] == "rebuilt_startup_warmup_bridge_no_gpu_verified"
 print("C2/C3 evidence overlay parent and patch provenance passed")
 PY
 
@@ -336,7 +338,7 @@ import sys
 
 with open(sys.argv[1]) as handle:
     profiles = json.load(handle)["profiles"]
-image = "qwen38-c2c3-evidence@sha256:a63bbe5a4a65a7d54de1329333825f38eac6a79f40efb86c497cf8f78ace5967"
+image = "qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb"
 for name, port, running, cache in (("c2", 11447, "2", "8"), ("c3", 11448, "3", "12")):
     profile = profiles[name]
     args = profile["extra_args"]

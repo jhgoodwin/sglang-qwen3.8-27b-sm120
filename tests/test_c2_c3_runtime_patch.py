@@ -16,6 +16,7 @@ from unittest import mock
 REPO = pathlib.Path(__file__).resolve().parents[1]
 PATCH = REPO / "patches/sglang/0002-c2c3-server-evidence.patch"
 PINNED_HASHES = {
+    "entrypoints/http_server.py": "305a02a9238b62da90c9dc90ecbbdc0811ba7725f13056677e3ed7dbbfc81d4e",
     "entrypoints/openai/sse_utils.py": "a04b5b4548067c8932466aa99f9758d7a87d547f6a1843f9d104bbbfe3ea2ac4",
     "entrypoints/openai/serving_chat.py": "4f14086fe02f4f1efea0a953784c8ac01d3d5d5209df85ea7cd2baa5a5c16027",
     "managers/scheduler.py": "7beb1b7108f4e6eebdeda57ea2126f7a1404fc0af7a2b24179cf8259f8e0b2a2",
@@ -79,6 +80,7 @@ class RuntimePatchTests(unittest.TestCase):
         cls.srt = target
         for relative in (
             "campaign_evidence.py",
+            "entrypoints/http_server.py",
             "entrypoints/openai/sse_utils.py",
             "entrypoints/openai/serving_chat.py",
             "managers/scheduler.py",
@@ -102,6 +104,8 @@ class RuntimePatchTests(unittest.TestCase):
     def test_disabled_mode_is_a_noop(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             module = self._load_evidence()
+            self.assertEqual(module.startup_warmup_headers({"Authorization": "Bearer x"}),
+                             {"Authorization": "Bearer x"})
             self.assertIsNone(module.request_id_from_headers({"x-request-id": "client-a"}))
             self.assertEqual(module.stream_token_ids([1], incremental=True, offsets={}, index=0), [])
             module.get_scheduler_recorder().queued("client-a")
@@ -110,6 +114,11 @@ class RuntimePatchTests(unittest.TestCase):
         evidence_path = self.root / "scheduler.jsonl"
         with mock.patch.dict(os.environ, {"SGLANG_C2C3_EVIDENCE_PATH": str(evidence_path)}, clear=True):
             module = self._load_evidence()
+            warmup_headers = module.startup_warmup_headers({"Authorization": "Bearer x"})
+            self.assertEqual(warmup_headers["x-request-id"], module.INTERNAL_WARMUP_REQUEST_ID)
+            self.assertEqual(warmup_headers["Authorization"], "Bearer x")
+            self.assertEqual(module.request_id_from_headers(warmup_headers),
+                             module.INTERNAL_WARMUP_REQUEST_ID)
             self.assertEqual(module.request_id_from_headers({"x-request-id": " client-a "}), "client-a")
             with self.assertRaises(ValueError):
                 module.request_id_from_headers({})
@@ -186,6 +195,7 @@ class RuntimePatchTests(unittest.TestCase):
         rendered = ast.dump(returns[-1])
         self.assertIn("asdict", rendered)
         self.assertIn("internal_states", rendered)
+        self.assertIn("startup_warmup_headers", _calls(_function(http_server, "_execute_server_warmup")))
 
     def test_runtime_measurement_counts_physical_dflash_lists_and_graphs(self):
         module = self._load_evidence()

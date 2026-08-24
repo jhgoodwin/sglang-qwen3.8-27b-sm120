@@ -115,6 +115,12 @@ running/queued counts. The request ID is sent as `X-Request-ID`. This is the
 only accepted admission/queue source; response headers, client timing, and
 aggregate-only gauges do not establish scheduler admission.
 
+The instrumented image assigns SGLang's built-in startup warmup the reserved
+ID `__sglang_c2c3_startup_warmup__`. Its scheduler event provides the PID/start
+identity used by `--server-pid auto`. A measured run begins tailing at the
+current JSONL end before releasing its request barrier, so startup warmup and
+earlier-cell history are preserved on disk but excluded from that run.
+
 ```sh
 python3 bench/server_evidence.py capture-provenance \
   --container qwen3.8-27b-sglang --profile c2 --gpu 0 \

@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..0781807798daca71cf1b6c56de2fdc8ce334d97d
 --- /dev/null
 +++ b/python/sglang/srt/campaign_evidence.py
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,250 @@
 +"""Opt-in, fail-closed evidence for the Qwen3.8 C2/C3 campaign.
 +
 +Set ``SGLANG_C2C3_EVIDENCE_PATH`` to an absolute JSONL path before starting
@@ -42,6 +42,17 @@ index 0000000000000000000000000000000000000000..0781807798daca71cf1b6c56de2fdc8c
 +
 +def enabled() -> bool:
 +    return configured_path() is not None
++
++
++INTERNAL_WARMUP_REQUEST_ID = "__sglang_c2c3_startup_warmup__"
++
++
++def startup_warmup_headers(headers: Mapping[str, str]) -> dict[str, str]:
++    """Identify only SGLang's internal HTTP startup request while enabled."""
++    result = dict(headers)
++    if enabled():
++        result["x-request-id"] = INTERNAL_WARMUP_REQUEST_ID
++    return result
 +
 +
 +def request_id_from_headers(headers: Mapping[str, str] | None) -> str | None:
@@ -243,6 +254,19 @@ index 0000000000000000000000000000000000000000..0781807798daca71cf1b6c56de2fdc8c
 +        if _recorder is None:
 +            _recorder = SchedulerEvidenceRecorder(configured_path())
 +        return _recorder
+diff --git a/python/sglang/srt/entrypoints/http_server.py b/python/sglang/srt/entrypoints/http_server.py
+index 1f962709982124904d84fe03c23be781be456c81..09b2e29e8fb329629d61e8fc7fead2ab218ab89f 100644
+--- a/python/sglang/srt/entrypoints/http_server.py
++++ b/python/sglang/srt/entrypoints/http_server.py
+@@ -66,5 +66,6 @@ from sglang.srt.configs.device_config import DeviceConfig
+ from sglang.srt.configs.embedding_model_spec import resolved_embedding_plan
+ from sglang.srt.constants import HEALTH_CHECK_RID_PREFIX
++from sglang.srt.campaign_evidence import startup_warmup_headers
+ from sglang.srt.disaggregation.utils import FAKE_BOOTSTRAP_HOST, DisaggregationMode
+ from sglang.srt.entrypoints.anthropic.protocol import (
+     AnthropicCountTokensRequest,
+@@ -2190,0 +2192 @@ def _execute_server_warmup(server_args: ServerArgs):
++    headers = startup_warmup_headers(headers)
 diff --git a/python/sglang/srt/entrypoints/openai/serving_chat.py b/python/sglang/srt/entrypoints/openai/serving_chat.py
 index 31c2637bb057cc514fe5f62db8eb4e3b43dcac13..4cea1fd4a73565c73ebff336b4d42655ffbe844a 100644
 --- a/python/sglang/srt/entrypoints/openai/serving_chat.py

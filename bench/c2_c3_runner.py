@@ -313,7 +313,13 @@ class JsonlTail:
         self._thread.start()
 
     def _run(self) -> None:
-        offset = 0
+        # Startup warmup and earlier cells remain in the append-only source for
+        # PID/history evidence, but this run retains only events appended after
+        # its monitors start.
+        try:
+            offset = self.path.stat().st_size
+        except FileNotFoundError:
+            offset = 0
         while not self._stop.is_set():
             offset = self._read(offset)
             self._stop.wait(self.interval)

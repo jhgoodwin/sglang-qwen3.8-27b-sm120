@@ -157,6 +157,20 @@ class ConcurrentRunnerTests(unittest.TestCase):
             for key in ("temperature", "top_p", "top_k"):
                 self.assertNotIn(key, request["body"])
 
+    def test_scheduler_tail_starts_after_startup_warmup_history(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "scheduler.jsonl"
+            warmup = {"client_request_id": "__sglang_c2c3_startup_warmup__"}
+            measured = {"client_request_id": "run-r0"}
+            path.write_text(json.dumps(warmup) + "\n")
+            monitor = runner.JsonlTail(path, interval=.005)
+            monitor.start()
+            with path.open("a") as handle:
+                handle.write(json.dumps(measured) + "\n")
+            time.sleep(.03)
+            rows = monitor.stop()
+        self.assertEqual([row["event"] for row in rows], [measured])
+
     def test_threads_are_barrier_aligned_and_concurrent(self):
         active = 0
         peak = 0
