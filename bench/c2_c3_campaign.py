@@ -242,8 +242,12 @@ def main(argv: list[str] | None = None) -> int:
             specs = request_shape(stage, args.profile, repetition,
                                   [prompts_by_target.get(input_tokens, "Reply briefly.")], manifest)
             specs["base_url"] = args.base_url
+            spec_path = args.artifact_root / "specs" / f"{args.profile}-{stage}-r{repetition}.json"
+            spec_path.parent.mkdir(parents=True, exist_ok=True)
+            spec_path.write_text(json.dumps(specs, indent=2) + "\n")
             output = args.artifact_root / "raw" / f"{args.profile}-{stage}-r{repetition}.json"
             output.parent.mkdir(parents=True, exist_ok=True)
+            raw = None
             try:
                 server = json.loads(args.server_evidence.read_text())
                 pid = c2_c3_runner.bootstrap_server_pid(args.scheduler_events)[0] if args.server_pid == "auto" else int(args.server_pid)
@@ -256,8 +260,11 @@ def main(argv: list[str] | None = None) -> int:
                     state_path.write_text(json.dumps(state, indent=2) + "\n")
                     raise SystemExit(f"BLOCKED: importer rejected {key}; artifact preserved at {output}")
                 state["accepted"][key] = str(output)
+                accepted = state["accepted"]
                 state_path.write_text(json.dumps(state, indent=2) + "\n")
             except Exception as exc:
+                if isinstance(raw, dict):
+                    output.write_text(json.dumps({"raw": raw, "error": f"{type(exc).__name__}: {exc}"}, indent=2) + "\n")
                 state["failures"].append({"key": key, "error": f"{type(exc).__name__}: {exc}"})
                 state_path.write_text(json.dumps(state, indent=2) + "\n")
                 raise
