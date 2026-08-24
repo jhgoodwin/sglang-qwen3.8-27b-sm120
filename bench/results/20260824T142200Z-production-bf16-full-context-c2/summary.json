@@ -1,0 +1,66 @@
+{
+  "schema": "qwen38.bf16-full-context-summary",
+  "version": 1,
+  "outcome": "pass_at_sglang_schedulable_context_limit",
+  "started_utc": "2026-08-24T14:23:13.745795+00:00",
+  "ended_utc": "2026-08-24T14:28:39.932971+00:00",
+  "runtime": {
+    "model_revision": "319f741cce68d7914884900c138a1fbb70a42f30",
+    "source_revision": "5f55db35e926d50676f75b812640ea2410b0fe0e",
+    "configured_context_length": 262144,
+    "sglang_scheduler_reserved_tokens_per_request": 2,
+    "schedulable_api_token_length_per_request": 262142,
+    "kv_cache_dtype": "bf16",
+    "kv_token_capacity": 644884,
+    "max_running_requests": 2
+  },
+  "request": {
+    "concurrency": 2,
+    "prompt_tokens_per_request": 256144,
+    "requested_completion_tokens_per_request": 6000,
+    "ignore_eos": true
+  },
+  "results": [
+    {
+      "request_id": "bf16-context-0-392d95fdd9fd",
+      "http_status": 200,
+      "finish_reason": "length",
+      "prompt_tokens": 256144,
+      "completion_tokens": 5998,
+      "total_tokens": 262142
+    },
+    {
+      "request_id": "bf16-context-1-ab45548aa867",
+      "http_status": 200,
+      "finish_reason": "length",
+      "prompt_tokens": 256144,
+      "completion_tokens": 5998,
+      "total_tokens": 262142
+    }
+  ],
+  "concurrency": {
+    "both_first_tokens_before_either_completion": true,
+    "server_observed_running_requests": 2,
+    "peak_server_observed_full_tokens": 522996,
+    "peak_fraction_of_kv_capacity": 0.810992,
+    "peak_fraction_of_two_schedulable_contexts": 0.997543
+  },
+  "log_audit": {
+    "oom": false,
+    "retraction": false,
+    "traceback": false,
+    "request_error": false,
+    "server_crash": false
+  },
+  "raw_probe": {
+    "path": "probe.json",
+    "sha256": "2eede80bae4df51adac1b558272cb912e5651c584ead6d7a6b4c068e60043314",
+    "size_note": "15 MiB raw SSE capture retained locally and ignored by git",
+    "probe_status": "fail",
+    "probe_status_explanation": "The fail-closed validator expected 6000 completion tokens, but pinned SGLang deliberately reserves two tokens and capped each request at its 262142-token schedulable limit."
+  },
+  "sglang_limit_evidence": {
+    "tp_worker": "max_req_len = context_len - 1",
+    "scheduler": "max_new_tokens <= max_req_len - input_len - 1"
+  }
+}
