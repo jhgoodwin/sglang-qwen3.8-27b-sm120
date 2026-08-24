@@ -339,10 +339,67 @@ def _require_fresh_lifecycle(state: dict[str, Any], current: dict[str, Any]) -> 
 def _next_cell(state: dict[str, Any]) -> tuple[str, int] | None:
     accepted = state.get("accepted", {})
     for stage in STAGES:
+        if stage in state.get("dependency_waivers", {}):
+            continue
         for repetition in range(1, 4):
             if f"{stage}/r{repetition}" not in accepted:
                 return stage, repetition
     return None
+
+
+def _stage_complete_or_waived(state: dict[str, Any], stage: str) -> bool:
+    return (stage in state.get("dependency_waivers", {}) or
+            all(f"{stage}/r{repetition}" in state.get("accepted", {}) for repetition in range(1, 4)))
+
+
+def _validate_b_two_token_reserve(raw: dict[str, Any]) -> dict[str, Any]:
+    """Validate the explicit operational waiver without calling B exact."""
+    if raw.get("stage") != "B-near-native-prefill":
+        raise ValueError("waiver source is not stage B")
+    imported = c2_c3_importer.validate_and_import(raw)
+    expected_errors = {f"request {request.get('client_request_id')}: forced output requires exact completion count and length finish"
+                       for request in raw.get("requests", [])}
+    if set(imported.get("errors", [])) != expected_errors or not expected_errors:
+        raise ValueError("B waiver source has failures beyond the two-token output reserve")
+    for request, result in zip(raw.get("requests", []), imported.get("requests", [])):
+        usage = request.get("usage", {})
+        token_count = timestamp_count = 0
+        for event in request.get("events", []):
+            parsed = event.get("parsed") if isinstance(event, dict) else None
+            if isinstance(parsed, dict):
+                token_count += len(parsed.get("token_ids") or [])
+                timestamp_count += len(parsed.get("token_timestamps_s") or [])
+        if (request.get("requested_output_tokens") != 1024 or
+                usage.get("prompt_tokens") != 261120 or usage.get("completion_tokens") != 1022 or
+                request.get("finish_reason") != "length" or token_count != 1022 or timestamp_count != 1022 or
+                result.get("metrics", {}).get("itl", {}).get("status") != "available"):
+            raise ValueError("B waiver source does not prove the exact two-token boundary reserve")
+    return {"prompt_tokens": 261120, "requested_completion_tokens": 1024,
+            "observed_completion_tokens": 1022, "reserved_boundary_tokens": 2,
+            "finish_reason": "length", "token_ids_and_timestamps_per_request": 1022}
+
+
+def _apply_b_two_token_reserve_waiver(state: dict[str, Any], lifecycle: dict[str, Any]) -> None:
+    for failure in reversed(state.get("failures", [])):
+        if (not isinstance(failure, dict) or failure.get("key") != "B-near-native-prefill/r1" or
+                not isinstance(failure.get("artifact"), str)):
+            continue
+        source = pathlib.Path(failure["artifact"])
+        if not source.is_file():
+            continue
+        wrapper = json.loads(source.read_text())
+        raw = wrapper.get("raw") if isinstance(wrapper, dict) else None
+        if not isinstance(raw, dict):
+            continue
+        facts = _validate_b_two_token_reserve(raw)
+        digest = hashlib.sha256(json.dumps(raw, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        state.setdefault("dependency_waivers", {})["B-near-native-prefill"] = {
+            "kind": "two-token-transport-boundary-reserve", "scope": "dependency-only",
+            "exact_B_success": False, "source_artifact": str(source), "source_raw_sha256": digest,
+            "observed": facts, "waived_repetitions": [1, 2, 3]}
+        lifecycle["measured_cell"] = "B-near-native-prefill/r1 (dependency waiver; not exact success)"
+        return
+    raise ValueError("no preserved B/r1 artifact is eligible for the two-token reserve waiver")
 
 
 def _attempt_number(state: dict[str, Any], key: str) -> int:
@@ -402,6 +459,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--server-pid", default="auto")
     run.add_argument("--sample-interval", type=float, default=1.0)
     run.add_argument("--gpu", default="0")
+    run.add_argument("--waive-b-two-token-reserve", action="store_true",
+                     help="record preserved B 261120+1022 evidence as dependency-only; never exact B success")
     run.add_argument("--timeout", type=float, default=None,
                      help="per-cell stream timeout; defaults to 1800s, 2100s for C/D, 2700s for E")
     args = parser.parse_args(argv)
@@ -487,6 +546,14 @@ def main(argv: list[str] | None = None) -> int:
         state.pop("next_command", None)
         _write_state(state_path, state)
 
+    if args.waive_b_two_token_reserve and "B-near-native-prefill" not in state.get("dependency_waivers", {}):
+        try:
+            _apply_b_two_token_reserve_waiver(state, lifecycle)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            raise SystemExit(f"BLOCKED: cannot apply B two-token reserve waiver: {error}") from error
+        state["dependency_waivers"]["B-near-native-prefill"]["recorded_at_epoch_s"] = time.time()
+        _write_state(state_path, state)
+
     while (cell := _next_cell(state)) is not None:
             stage, repetition = cell
             key = f"{stage}/r{repetition}"
@@ -494,8 +561,7 @@ def main(argv: list[str] | None = None) -> int:
             artifact_name = _attempt_name(f"{args.profile}-{stage}-r{repetition}", attempt)
             repetition_name = _attempt_name(f"r{repetition}", attempt)
             dependencies = next(x["depends_on"] for x in manifest["stages"] if x["id"] == stage)
-            if not all(f"{dependency}/r{rep}" in state["accepted"]
-                       for dependency in dependencies for rep in range(1, 4)):
+            if not all(_stage_complete_or_waived(state, dependency) for dependency in dependencies):
                 raise SystemExit(f"BLOCKED: dependency for {stage} has not completed accepted repetitions")
             if stage in COLD_BOOT_STAGES and lifecycle.get("measured_cell"):
                 raise SystemExit(f"BLOCKED: {key} requires a fresh boot; current lifecycle already measured "

@@ -453,13 +453,17 @@ class CampaignImporterTests(unittest.TestCase):
         self.assertEqual(metrics["emitted_reasoning_tokens"], 2)
         self.assertEqual(metrics["visible_tokens"], 0)
 
-    def test_stream_channel_counts_fail_closed_on_mixed_or_missing_ids(self):
+    def test_mixed_reasoning_visible_chunk_is_retained_as_partial_channel_count(self):
         raw = raw_run()
         raw["requests"][0]["events"][0]["parsed"]["choices"][0]["delta"] = {
             "content": "a", "reasoning_content": "thought"}
         imported = importer.validate_and_import(raw)
-        self.assertFalse(imported["accepted"])
-        self.assertTrue(any("cannot classify emitted tokens" in error for error in imported["errors"]))
+        self.assertTrue(imported["accepted"], imported["errors"])
+        metrics = imported["requests"][0]["metrics"]
+        self.assertEqual(metrics["channel_counts_status"], "partial")
+        self.assertEqual(metrics["mixed_channel_tokens"], 1)
+        self.assertEqual(metrics["visible_tokens"], 1)
+        self.assertIn("not allocated", metrics["visible_tokens_basis"])
 
 
 if __name__ == "__main__":

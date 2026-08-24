@@ -193,7 +193,7 @@ def _usage_counts(request: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     # reasoning text.  It is not necessarily a subset of generated model-token
     # IDs and can therefore exceed completion_tokens.  Classify the instrumented
     # emitted IDs by their SSE delta channel instead of subtracting unlike units.
-    visible = emitted_reasoning = 0
+    visible = emitted_reasoning = mixed_channel = unclassified_channel = 0
     for event in request.get("events", []):
         parsed = event.get("parsed") if isinstance(event, dict) else None
         if not isinstance(parsed, dict):
@@ -211,19 +211,28 @@ def _usage_counts(request: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                     reasoning_content += (delta.get("reasoning_content", "")
                                           if isinstance(delta.get("reasoning_content", ""), str) else "")
         if content and reasoning_content:
-            errors.append("cannot classify emitted tokens from mixed content/reasoning delta")
+            mixed_channel += len(ids)
         elif content:
             visible += len(ids)
         elif reasoning_content:
             emitted_reasoning += len(ids)
-    if type(completion) is int and visible + emitted_reasoning != completion:
+        else:
+            unclassified_channel += len(ids)
+    if (type(completion) is int and
+            visible + emitted_reasoning + mixed_channel + unclassified_channel != completion):
         errors.append("emitted content/reasoning token count differs from completion usage")
     return {"prompt_tokens": prompt, "completion_tokens": completion,
             "reasoning_tokens": reasoning,
             "reasoning_tokens_basis": "server_usage_rendered_text_tokenization",
             "emitted_reasoning_tokens": emitted_reasoning,
             "visible_tokens": visible,
-            "visible_tokens_basis": "server_token_ids_classified_by_sse_delta_channel"}, errors
+            "mixed_channel_tokens": mixed_channel,
+            "unclassified_channel_tokens": unclassified_channel,
+            "channel_counts_status": "partial" if mixed_channel or unclassified_channel else "exact",
+            "visible_tokens_basis": ("definite server token_ids from single-channel SSE deltas; "
+                                     "mixed/unclassified channel tokens are not allocated"
+                                     if mixed_channel or unclassified_channel else
+                                     "server_token_ids classified by SSE delta channel")}, errors
 
 
 def _token_itl(request: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:

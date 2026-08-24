@@ -220,6 +220,25 @@ class CampaignDriverTests(unittest.TestCase):
             self.assertEqual(state["accepted"]["A-boot-admission/r1"], str(retry))
             self.assertFalse((root / "artifacts/raw/c2-A-boot-admission-r1-attempt2.json").exists())
 
+    def test_b_reserve_waiver_is_explicit_recorded_and_dependency_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = pathlib.Path(directory) / "b.json"
+            source.write_text(json.dumps({"raw": {"stage": "B-near-native-prefill", "requests": []}}))
+            state = {"accepted": {f"A-boot-admission/r{rep}": "ok" for rep in range(1, 4)},
+                     "failures": [{"key": "B-near-native-prefill/r1", "artifact": str(source)}]}
+            self.assertEqual(campaign._next_cell(state), ("B-near-native-prefill", 1),
+                             "B must not be skipped before the explicit waiver")
+            lifecycle = {}
+            facts = {"prompt_tokens": 261120, "observed_completion_tokens": 1022,
+                     "reserved_boundary_tokens": 2}
+            with patch.object(campaign, "_validate_b_two_token_reserve", return_value=facts):
+                campaign._apply_b_two_token_reserve_waiver(state, lifecycle)
+            waiver = state["dependency_waivers"]["B-near-native-prefill"]
+            self.assertFalse(waiver["exact_B_success"])
+            self.assertEqual(waiver["scope"], "dependency-only")
+            self.assertEqual(waiver["observed"], facts)
+            self.assertEqual(campaign._next_cell(state), ("C-max-output-decode", 1))
+
     def test_preflight_vram_gate_parses_and_rejects(self):
         completed = type("Completed", (), {"stdout": "6000, 100000\n"})()
         with patch.object(campaign.subprocess, "run", return_value=completed):
