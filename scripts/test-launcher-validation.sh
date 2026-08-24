@@ -223,3 +223,124 @@ if env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp/model" HF_CACHE_HUB="$tmp/hf" IMAGE
 fi
 grep -q 'host port 11437 is already listening' "$tmp/collision"
 echo "port collision refusal passed"
+echo '#!/bin/sh' > "$tmp/bin/ss"
+echo 'exit 0' >> "$tmp/bin/ss"
+chmod +x "$tmp/bin/ss"
+
+# Queued C2/C3 profiles use the pinned evidence overlay and reserve an
+# operator-owned JSONL target without changing the existing profile contract.
+c2_image='qwen38-c2c3-evidence@sha256:cb7a56b3cc39872f43732a58e5adc13361bb24a53d1425ab878d2829a90ac6d0'
+run_c2c3() {
+  local profile=$1 port=$2 max_running=$3 mamba_size=$4
+  local evidence="$tmp/evidence-$profile"
+  mkdir -p "$evidence"
+  CAPTURE="$tmp/$profile.args" env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp/model" HF_CACHE_HUB="$tmp/hf" \
+    DRAFT_MODEL_DIR="$tmp/draft" EVIDENCE_DIR="$evidence" EVIDENCE_FILE="$profile.jsonl" \
+    CACHE_DIR="$tmp/cache-$profile" PROFILE="$profile" CAPTURE="$tmp/$profile.args" "$repo/serve.sh"
+  grep -Fq -- "--name qwen3.8-27b-sglang" "$tmp/$profile.args"
+  grep -Fq -- "--pid=host" "$tmp/$profile.args"
+  grep -Fq -- "-p 127.0.0.1:$port:8000" "$tmp/$profile.args"
+  grep -Fq -- "$c2_image" "$tmp/$profile.args"
+  grep -Fq -- "-v $evidence:/c2-c3-evidence:rw" "$tmp/$profile.args"
+  grep -Fq -- "SGLANG_C2C3_EVIDENCE_PATH=/c2-c3-evidence/$profile.jsonl" "$tmp/$profile.args"
+  grep -Fq -- "--max-running-requests $max_running" "$tmp/$profile.args"
+  grep -Fq -- "--max-mamba-cache-size $mamba_size" "$tmp/$profile.args"
+  grep -Fq -- "--speculative-num-draft-tokens 8" "$tmp/$profile.args"
+  grep -Fq -- "--mamba-radix-cache-strategy extra_buffer_lazy" "$tmp/$profile.args"
+  grep -Fq -- "-v $tmp/draft:/models/Qwen3.8-27B-DFlash2:ro" "$tmp/$profile.args"
+  ! grep -Fq -- '--mamba-full-memory-ratio' "$tmp/$profile.args"
+  [[ -s "$evidence/$profile.jsonl" ]] && { echo "evidence target unexpectedly nonempty" >&2; exit 1; }
+  [[ "$(stat -c '%a' "$evidence/$profile.jsonl")" == 600 ]] || { echo "evidence target is not mode 0600" >&2; exit 1; }
+  if env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp/model" HF_CACHE_HUB="$tmp/hf" DRAFT_MODEL_DIR="$tmp/draft" \
+      EVIDENCE_DIR="$evidence" EVIDENCE_FILE="$profile.jsonl" CACHE_DIR="$tmp/cache-stale-$profile" PROFILE="$profile" \
+      "$repo/serve.sh" 2>"$tmp/stale-$profile"; then
+    echo "stale evidence target unexpectedly accepted: $profile" >&2; exit 1
+  fi
+  grep -q 'evidence target already exists' "$tmp/stale-$profile"
+}
+run_c2c3 c2 11447 2 8
+run_c2c3 c3 11448 3 12
+auto_evidence="$tmp/evidence-auto"
+mkdir -p "$auto_evidence"
+CAPTURE="$tmp/c2-auto.args" env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp/model" HF_CACHE_HUB="$tmp/hf" \
+  DRAFT_MODEL_DIR="$tmp/draft" EVIDENCE_DIR="$auto_evidence" CACHE_DIR="$tmp/cache-c2-auto" \
+  PROFILE=c2 CAPTURE="$tmp/c2-auto.args" "$repo/serve.sh"
+auto_path=$(grep -o -- 'SGLANG_C2C3_EVIDENCE_PATH=/c2-c3-evidence/[^ ]*' "$tmp/c2-auto.args" | head -1)
+grep -Fq -- 'SGLANG_C2C3_EVIDENCE_PATH=/c2-c3-evidence/c2-' <<<"$auto_path"
+auto_file=${auto_path##*/}
+[[ "$auto_file" != *'/'* && ! -s "$auto_evidence/$auto_file" ]]
+if env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp/model" HF_CACHE_HUB="$tmp/hf" DRAFT_MODEL_DIR="$tmp/draft" \
+    EVIDENCE_DIR="$auto_evidence" EVIDENCE_FILE=bad/name.jsonl CACHE_DIR="$tmp/cache-slash" PROFILE=c2 "$repo/serve.sh" 2>"$tmp/slash"; then
+  echo "slash-containing evidence filename unexpectedly accepted" >&2; exit 1
+fi
+grep -q 'EVIDENCE_FILE must be a filename' "$tmp/slash"
+
+# A stopped container still reserves its name; ps -a must be used for this
+# guard. Replace only the test double, never a real Docker service.
+printf '%s\n' '#!/bin/sh' \
+  'case "$*" in' \
+  "  'ps -a '* ) printf '%s\\n' 'qwen3.8-27b-sglang'; exit 0 ;;" \
+  'esac' 'exit 0' > "$tmp/bin/docker"
+chmod +x "$tmp/bin/docker"
+if env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp/model" HF_CACHE_HUB="$tmp/hf" DRAFT_MODEL_DIR="$tmp/draft" \
+    EVIDENCE_DIR="$tmp/evidence-stopped" CACHE_DIR="$tmp/cache-stopped" PROFILE=c2 "$repo/serve.sh" 2>"$tmp/stopped"; then
+  echo "stopped-name collision unexpectedly accepted" >&2; exit 1
+fi
+grep -q 'container name qwen3.8-27b-sglang is already in use' "$tmp/stopped"
+echo "C2/C3 pinned evidence profiles, state pins, PID namespace, and stale-target refusal passed"
+python3 - "$repo/serve.sh" <<'PY'
+import sys
+text = open(sys.argv[1]).read()
+assert text.index("model_dir=/data/models/models--RadixArk--Qwen3.8-27B-NVFP4") < text.index("model_mount_src=$model_dir")
+assert "docker ps -a --filter" in text
+assert 'evidence_file="${profile}-' in text
+print("C2/C3 default mount ordering and all-container collision guards passed")
+PY
+
+# The evidence image was layered on the immutable no-AVX overlay with patch
+# 0001 already present, not directly on the official upstream base.
+python3 - "$repo/source.lock.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as handle:
+    lock = json.load(handle)
+variant = lock["runtime_variants"]["c2-c3-evidence-overlay"]
+official = "lmsysorg/sglang@sha256:616a3e97f45191af975896cfa644279096cb31bd408a071c2e99ca7209c3cafe"
+parent = "sglang-qwen38-27b-sm120@sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d"
+parent_id = "sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d"
+alias = "qwen38-noavx-base:c2c3-build"
+assert variant["upstream_base_image"] == official
+assert variant["parent_overlay_image"] == parent
+assert variant["temporary_build_alias"] == alias
+assert variant["temporary_build_alias_verified_image_id"] == parent_id
+assert variant["buildkit_resolved_parent"] == f"{alias}@{parent_id}"
+assert variant["build_args"] == {"BASE_IMAGE": alias, "BASE_HAS_NOAVX": "1"}
+assert variant["temporary_build_alias_status"] == "removed_after_build"
+assert variant["patch_application"] == {
+    "patches/sglang/0001-noavx-disable-nixl-ep-import.patch": "inherited_from_parent_overlay_and_verified_before_skip",
+    "patches/sglang/0002-c2c3-server-evidence.patch": "applied_by_this_overlay_build",
+}
+assert variant["status"] == "built_no_gpu_import_verified"
+print("C2/C3 evidence overlay parent and patch provenance passed")
+PY
+
+python3 - "$repo/profiles.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as handle:
+    profiles = json.load(handle)["profiles"]
+image = "qwen38-c2c3-evidence@sha256:cb7a56b3cc39872f43732a58e5adc13361bb24a53d1425ab878d2829a90ac6d0"
+for name, port, running, cache in (("c2", 11447, "2", "8"), ("c3", 11448, "3", "12")):
+    profile = profiles[name]
+    args = profile["extra_args"]
+    assert profile["image"] == image
+    assert profile["context_length"] == 262144
+    assert profile["port"] == port
+    assert profile["container_name"] == "qwen3.8-27b-sglang"
+    assert args[args.index("--max-running-requests") + 1] == running
+    assert args[args.index("--max-mamba-cache-size") + 1] == cache
+    assert "--mamba-full-memory-ratio" not in args
+print("C2/C3 declarative profiles match runnable state pins passed")
+PY

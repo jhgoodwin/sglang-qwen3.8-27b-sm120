@@ -180,8 +180,22 @@ does not `fsync` the scheduler hot path. Completed writes therefore preserve
 partial evidence across client failures and normal shutdown, while a sudden
 host or kernel failure may lose the final buffered filesystem writes.
 
-For the campaign overlay build, alias the already-qualified no-AVX image
-locally, pass that alias as `BASE_IMAGE`, and set `BASE_HAS_NOAVX=1`. The
-Containerfile verifies the no-AVX source guard before skipping patch `0001`,
-then applies only the new evidence patch. The default build remains the full
-official-base path and applies both `0001` and `0002`.
+The runnable `c2` and `c3` launcher profiles require `EVIDENCE_DIR` to be an
+existing writable absolute host directory. Each launch reserves a new
+`<profile>-<UTC>-<pid>.jsonl` target (or an unused `EVIDENCE_FILE` basename),
+refuses stale targets, creates the reserved target with mode `0600`, binds the
+directory read-write at `/c2-c3-evidence`, and passes the fixed container path
+to the server. They
+also use `--pid=host`; the host runner's `--server-pid` must be the primary
+scheduler PID and matching `start_ticks` from scheduler JSONL, not an API PID
+or `docker top` value. The profiles refuse a live canonical-name or port
+collision and do not replace an existing container.
+
+For the campaign overlay build, tag the already-qualified no-AVX image as the
+temporary local alias `qwen38-noavx-base:c2c3-build`, verify that the alias and
+immutable parent both resolve to image ID `sha256:d3346cea...`, pass the alias
+as `BASE_IMAGE`, and set `BASE_HAS_NOAVX=1`. BuildKit must resolve the parent as
+that alias at digest `sha256:d3346cea...`; remove the alias after the build.
+The Containerfile verifies the no-AVX source guard before skipping patch
+`0001`, then applies only the new evidence patch. The default build remains the
+full official-base path and applies both `0001` and `0002`.

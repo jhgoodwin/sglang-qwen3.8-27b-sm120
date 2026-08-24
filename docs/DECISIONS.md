@@ -226,3 +226,33 @@
   compilation, JSONL state transitions, request correlation, and SSE token
   fields. They make no admission, memory, throughput, queue-wave, or GPU claim;
   those remain gated on a built overlay and later live campaign profiles.
+
+## C2/C3 launcher evidence profiles (2026-08-24)
+
+- Scope: make the queued C2 and C3 server processes independently launchable
+  with the already-built evidence overlay; this does not qualify either
+  profile or claim measured memory, throughput, pool, or CUDA-graph behavior.
+- Decision: `c2` and `c3` use the immutable evidence image digest, ports
+  11447/11448, the canonical production container name
+  `qwen3.8-27b-sglang`, and the measured TP1 NVFP4+DFlash2 recipe. They pin
+  two/three running requests and eight/twelve Mamba cache states while
+  omitting `--mamba-full-memory-ratio`.
+- Decision: each C2/C3 launch requires an existing writable absolute
+  `EVIDENCE_DIR`. The launcher reserves a unique per-profile JSONL filename,
+  refuses any pre-existing target, creates the reserved target with mode
+  `0600`, binds the directory read-write at
+  `/c2-c3-evidence`, and passes `SGLANG_C2C3_EVIDENCE_PATH` to the server.
+  Model, draft, and HF-cache inputs remain read-only.
+- Decision: C2/C3 alone use `--pid=host` so the host runner can validate the
+  scheduler `pid:<pid>:start_ticks:<ticks>` identity from JSONL against
+  `/proc`; the runner's `--server-pid` is the primary scheduler PID from the
+  evidence, not an API PID or `docker top` result. Name and port collisions
+  are rejected without replacing containers.
+- Consequence: the broadened PID visibility and evidence bind are limited to
+  these opt-in campaign profiles. The exact campaign maximum output remains
+  request metadata and is not emitted as a server argument.
+- Decision: the evidence overlay build uses temporary local parent alias
+  `qwen38-noavx-base:c2c3-build` only after its image ID is verified equal to
+  immutable parent `sha256:d3346cea...`; BuildKit resolves that alias at the
+  same digest, and the alias is removed after the build. The source lock keeps
+  the upstream official base distinct from this actual parent and build path.

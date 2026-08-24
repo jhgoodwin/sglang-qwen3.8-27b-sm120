@@ -68,6 +68,38 @@
       "model_repository": "RadixArk/Qwen3.8-27B-NVFP4", "draft_model": "incoai/Qwen3.8-27B-DFlash2", "draft_model_dir_env": "DRAFT_MODEL_DIR",
       "mamba_cache_strategy": "extra_buffer_lazy", "mamba_cache_size": 4, "mamba_full_memory_ratio": 6.12,
       "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.85", "--mamba-radix-cache-strategy", "extra_buffer_lazy", "--mamba-full-memory-ratio", "6.12", "--max-running-requests", "1", "--speculative-algorithm", "DFLASH", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DFlash2", "--speculative-num-draft-tokens", "8"]
+    },
+    "c2": {
+      "status": "queued_campaign_profile",
+      "tp": 1,
+      "gpus": "0",
+      "context_length": 262144,
+      "port": 11447,
+      "container_name": "qwen3.8-27b-sglang",
+      "image": "qwen38-c2c3-evidence@sha256:cb7a56b3cc39872f43732a58e5adc13361bb24a53d1425ab878d2829a90ac6d0",
+      "model_repository": "RadixArk/Qwen3.8-27B-NVFP4",
+      "draft_model": "incoai/Qwen3.8-27B-DFlash2",
+      "draft_model_dir_env": "DRAFT_MODEL_DIR",
+      "mamba_cache_size": 8,
+      "evidence": true,
+      "evidence_container_dir": "/c2-c3-evidence",
+      "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.85", "--mamba-radix-cache-strategy", "extra_buffer_lazy", "--max-running-requests", "2", "--max-mamba-cache-size", "8", "--speculative-algorithm", "DFLASH", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DFlash2", "--speculative-num-draft-tokens", "8"]
+    },
+    "c3": {
+      "status": "queued_campaign_profile",
+      "tp": 1,
+      "gpus": "0",
+      "context_length": 262144,
+      "port": 11448,
+      "container_name": "qwen3.8-27b-sglang",
+      "image": "qwen38-c2c3-evidence@sha256:cb7a56b3cc39872f43732a58e5adc13361bb24a53d1425ab878d2829a90ac6d0",
+      "model_repository": "RadixArk/Qwen3.8-27B-NVFP4",
+      "draft_model": "incoai/Qwen3.8-27B-DFlash2",
+      "draft_model_dir_env": "DRAFT_MODEL_DIR",
+      "mamba_cache_size": 12,
+      "evidence": true,
+      "evidence_container_dir": "/c2-c3-evidence",
+      "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.85", "--mamba-radix-cache-strategy", "extra_buffer_lazy", "--max-running-requests", "3", "--max-mamba-cache-size", "12", "--speculative-algorithm", "DFLASH", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DFlash2", "--speculative-num-draft-tokens", "8"]
     }
   }
 }
