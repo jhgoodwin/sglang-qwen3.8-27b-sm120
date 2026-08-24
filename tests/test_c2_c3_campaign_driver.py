@@ -70,6 +70,19 @@ class CampaignDriverTests(unittest.TestCase):
         self.assertEqual(proof["observed"], 97)
         self.assertTrue(prompt.endswith("a"))
 
+    def test_repeated_suffix_spans_live_sized_coarse_token_gap(self):
+        def tokenize(url, body, timeout):
+            text = body["messages"][0]["content"]
+            coarse = text.count("-filler") * 20
+            residue = text.count(" a")
+            return 200, {"count": coarse + residue}
+        builder = campaign.ExactPromptBuilder("http://fake", "model", max_calls=240, tokenize=tokenize)
+        prompt, proof = builder.build(261117, namespace="c2/B/r1/q0")
+        self.assertEqual(tokenize("", {"messages": [{"content": prompt}]}, 1)[1]["count"], 261117)
+        self.assertEqual(proof["coarse_token_gap"], 20)
+        self.assertGreater(proof["suffix_repetitions"], 2)
+        self.assertLessEqual(len(builder.calls), 240)
+
     def test_short_warmup_is_bounded_and_retains_request_id(self):
         class Response:
             status = 200

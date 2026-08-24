@@ -136,21 +136,31 @@ class ExactPromptBuilder:
             else:
                 hi = mid
         center = lo
-        # Search a bounded correction alphabet against the real tokenizer. It
-        # covers residue gaps caused by multi-token units and merge boundaries.
-        suffixes = ["", " ", "a", "b", "c", "x", "y", "z", "0", "1", ".", "!", "?", "\n"]
-        suffixes += [a + b for a in suffixes[1:] for b in suffixes[1:]]
-        suffixes += [a + b + c for a in (" a", " b", " c", " x", " y", " z")
-                     for b in ("a", "b", "c", "x", "y", "z") for c in ("a", "b", "c", "x", "y", "z")]
-        for chars in range(max(0, center - 2), center + 3):
-            prefix = base + unit * chars
-            for suffix in suffixes[:40]:
-                text = prefix + suffix
+        for exact_chars in (center, center + 1):
+            if count_chars(exact_chars) == target:
+                text = base + unit * exact_chars
+                return text, {"target": target, "observed": target,
+                    "messages_sha256": _messages_hash(self._messages(text)),
+                    "namespace": namespace, "suffix_unit": "", "suffix_repetitions": 0,
+                    "algorithm": "nonce-separated-exact-coarse-point"}
+        # Fill the measured token gap from the lower coarse point with repeated
+        # stable suffix units.  Single/two-character permutations only covered
+        # tiny residues; the live tokenizer's coarse unit spans about 20 tokens.
+        lower_count = count_chars(center)
+        coarse_gap = max(1, count_chars(center + 1) - lower_count)
+        max_repeats = min(128, max(32, coarse_gap * 3))
+        prefix = base + unit * center
+        for suffix_unit in (" a", " z", " 7", "\nq"):
+            for repeats in range(max_repeats + 1):
+                text = prefix + suffix_unit * repeats
                 if self._probe(text) == target:
                     proof = {"target": target, "observed": target,
                              "messages_sha256": _messages_hash(self._messages(text)),
                              "namespace": namespace,
-                             "algorithm": "nonce-separated-coarse-plus-tokenized-suffix"}
+                             "coarse_lower_count": lower_count,
+                             "coarse_token_gap": coarse_gap,
+                             "suffix_unit": suffix_unit, "suffix_repetitions": repeats,
+                             "algorithm": "nonce-separated-coarse-plus-repeated-tokenized-suffix"}
                     return text, proof
         raise RuntimeError(f"failed closed: no exact prompt count {target} after {len(self.calls)} calls")
 
