@@ -20,6 +20,7 @@ CAPTURE="$tmp/production-default.args" env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp
   DRAFT_MODEL_DIR="$tmp/draft" HF_CACHE_HUB="$tmp/hf" CACHE_DIR="$tmp/cache-production-default" \
   CAPTURE="$tmp/production-default.args" "$repo/serve.sh"
 grep -Fq -- '--name qwen3.8-27b-sglang' "$tmp/production-default.args"
+grep -Fq -- '--network sglang-net' "$tmp/production-default.args"
 grep -Fq -- '-p 127.0.0.1:11436:8000' "$tmp/production-default.args"
 grep -Fq -- "$qualified_image" "$tmp/production-default.args"
 grep -Fq -- '--max-running-requests 2' "$tmp/production-default.args"
@@ -28,6 +29,7 @@ grep -Fq -- '--speculative-algorithm DFLASH' "$tmp/production-default.args"
 grep -Fq -- '--speculative-num-draft-tokens 8' "$tmp/production-default.args"
 grep -Fq -- "-v $tmp/draft:/models/Qwen3.8-27B-DFlash2:ro" "$tmp/production-default.args"
 grep -Fq -- 'sglang serve' "$tmp/production-default.args"
+grep -Fq -- '--served-model-name qwen/qwen3.8-27b' "$tmp/production-default.args"
 ! grep -Fq -- 'python3 -m sglang.launch_server' "$tmp/production-default.args"
 ! grep -Fq -- '--pid=host' "$tmp/production-default.args"
 ! grep -Fq -- 'SGLANG_C2C3_EVIDENCE_PATH' "$tmp/production-default.args"
@@ -42,6 +44,7 @@ run_profile() {
     HF_CACHE_HUB="$tmp/hf" IMAGE="$valid" CACHE_DIR="$tmp/cache-$profile" \
     PROFILE="$profile" CAPTURE="$tmp/$profile.args" "$repo/serve.sh"
   grep -Fq -- "--name $expected_name" "$tmp/$profile.args"
+  grep -Fq -- '--network sglang-net' "$tmp/$profile.args"
   grep -Fq -- "--gpus \"device=$expected_gpu\"" "$tmp/$profile.args"
   grep -Fxq -- "\"device=$expected_gpu\"" "$tmp/$profile.args"
   grep -Fq -- "-p 127.0.0.1:$expected_port:8000" "$tmp/$profile.args"
@@ -79,6 +82,7 @@ CAPTURE="$tmp/snapshot.args" env PATH="$tmp/bin:$PATH" MODEL_DIR="$snapshot" \
   PROFILE=tp1-bf16-safe CAPTURE="$tmp/snapshot.args" "$repo/serve.sh"
 grep -Fq -- "-v $tmp/hf-repo:/models/Qwen3.8-27B-cache:ro" "$tmp/snapshot.args"
 grep -Fq -- '--model-path /models/Qwen3.8-27B-cache/snapshots/revision-abc' "$tmp/snapshot.args"
+grep -Fq -- '--served-model-name qwen/qwen3.8-27b' "$tmp/snapshot.args"
 echo "Hugging Face snapshot symlink-preserving mount passed"
 
 run_candidate() {

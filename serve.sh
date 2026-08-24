@@ -13,6 +13,8 @@ tp=${TP_SIZE:-}
 context=${CONTEXT_LENGTH:-}
 port=${PORT:-}
 container_port=${CONTAINER_PORT:-8000}
+served_model_name=${SERVED_MODEL_NAME:-qwen/qwen3.8-27b}
+docker_network=${DOCKER_NETWORK:-sglang-net}
 name=${CONTAINER_NAME:-}
 cache_dir=${CACHE_DIR:-}
 source_revision=${SOURCE_REVISION:-}
@@ -61,6 +63,8 @@ die() { echo "serve.sh: $*" >&2; exit 2; }
 [[ -d "$model_dir" ]] || die "model path does not exist: $model_dir (set MODEL_DIR; input is mounted read-only)"
 [[ -d "$hf_cache" ]] || die "HF cache path does not exist: $hf_cache (set HF_CACHE_HUB)"
 [[ "$container_port" =~ ^[0-9]+$ && "$container_port" -ge 1 && "$container_port" -le 65535 ]] || die "invalid CONTAINER_PORT: $container_port"
+[[ -n "$served_model_name" ]] || die "SERVED_MODEL_NAME must not be empty"
+[[ -n "$docker_network" ]] || die "DOCKER_NETWORK must not be empty"
 
 case "$profile" in
   tp1-bf16-safe) default_tp=1; default_gpus=0; default_port=11436; default_name=sglang-qwen38-27b-tp1-bf16-safe ;;
@@ -223,10 +227,10 @@ mounts+=("${evidence_mount[@]}")
 # Docker's --gpus parser requires the device request's CSV to retain literal
 # quotes; without them, a multi-GPU value is parsed as both Count and DeviceIDs.
 gpu_request="\"device=$gpus\""
-docker run --rm --name "$name" "${pid_namespace[@]}" --gpus "$gpu_request" --shm-size=16g --ulimit memlock=-1 --ulimit stack=67108864 \
+docker run --rm --name "$name" --network "$docker_network" "${pid_namespace[@]}" --gpus "$gpu_request" --shm-size=16g --ulimit memlock=-1 --ulimit stack=67108864 \
   -p "127.0.0.1:${port}:${container_port}" \
   "${mounts[@]}" \
   -e HF_HOME=/hf-cache -e TORCHINDUCTOR_CACHE_DIR=/cache/torch -e TRITON_CACHE_DIR=/cache/triton -e FLASHINFER_WORKSPACE_DIR=/cache/flashinfer \
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   "${evidence_env[@]}" \
-  "$image" sglang serve --model-path "$model_container_path" --trust-remote-code --context-length "$context" --tp-size "$tp" --host 0.0.0.0 --port "$container_port" "${extra[@]}"
+  "$image" sglang serve --model-path "$model_container_path" --served-model-name "$served_model_name" --trust-remote-code --context-length "$context" --tp-size "$tp" --host 0.0.0.0 --port "$container_port" "${extra[@]}"
