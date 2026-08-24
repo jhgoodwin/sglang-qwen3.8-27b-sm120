@@ -216,6 +216,54 @@ Raw current-panel artifacts: [benchmark command](bench/results/current-cookbook-
 [all matched-panel artifacts](bench/results/current-cookbook-20260823/), and
 [all lazy operational repetitions](bench/results/current-cookbook-20260823/operational/).
 
+## Production BF16 single coding pass (2026-08-24)
+
+This separately versioned single pass used the committed production launcher
+defaults after revisions `771738d` and `5bbebf5`: context 262,144, BF16 KV,
+DFLASH, and no explicit reasoning-effort override. The exact runner command is
+recorded in [benchmark-command.txt](bench/results/20260824T133044Z-production-single-pass/benchmark-command.txt);
+it sent each of the three prompt files once, in runner order. All three
+requests returned HTTP 200 but ended with `finish_reason=length`, so they are
+incomplete and provide a truncation/performance warning rather than proof of a
+quality regression.
+
+The server identified the target as the NVFP4 checkpoint revision
+`319f741cce68d7914884900c138a1fbb70a42f30`, the runtime as SGLang
+`0.0.0.dev1+g5f55db35e`, and the image as
+`qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb`.
+The retained startup logs contain neither the deprecated
+`sglang.launch_server` notice nor the missing FP8 K/V scaling-factor warning;
+they show `kv_cache_dtype='bf16'`. They do retain unrelated notices that the
+NVFP4 checkpoint format is experimental and, after shutdown, that the NCCL
+process group was not explicitly destroyed.
+
+| prompt | HTTP / finish | completion tokens / server-reported reasoning tokens / visible content characters | wall time (s) | end-to-end tok/s |
+|---|---|---:|---:|---:|
+| django-varbit | 200 / length | 32,768 / 32,771 / 0 chars | 202.093 | 162.143 |
+| flappy-bird | 200 / length | 32,768 / 28,842 / 9,933 chars | 214.571 | 152.714 |
+| slack-clone | 200 / length | 32,768 / 19,900 / 35,906 chars | 260.552 | 125.764 |
+
+Aggregate: 98,304 completion tokens in 677.216 summed seconds (145.159
+completion tok/s by aggregate arithmetic); 3/3 incomplete. The nine-request
+baseline immediately above used FP8 KV, context 131,072, `reasoning_effort=medium`,
+and three repetitions: its per-prompt completion min/median/max were
+10,959/17,730/18,694 (django), 4,146/4,526/5,171 (flappy), and
+18,493/23,281/28,408 (slack); wall-time min/median/max were 57.339/89.338/93.871,
+17.992/18.251/21.343, and 114.194/141.744/188.698 seconds; end-to-end tok/s
+min/median/max were 191.126/198.459/199.145, 230.431/242.279/247.988, and
+150.547/161.944/164.247. The baseline nine-request aggregate was 131,408
+completion tokens in 742.771 seconds (176.916 tok/s). This pass generated the
+32,768-token default cap for every prompt; its raw aggregate completion rate
+was 0.8205x the baseline (17.95% lower). It therefore cannot establish
+quality, completion, or causal equivalence; the changed KV dtype, context,
+reasoning default, and repetition count also prevent a causal performance
+claim. The retained `content` field is text, so its 0/9,933/35,906 values are
+visible content character counts, not visible-token counts; this runner does
+not tokenize visible content. Visible-token counts are therefore unavailable
+and unreliable here. The django row also has server-reported
+`reasoning_tokens=32,771`, which exceeds its `completion_tokens=32,768`; do
+not derive visible tokens by subtraction.
+
 ## Long-context measurements
 
 These are separate TP1 EAGLE/MTP C1 measurements at 100,000 input tokens;

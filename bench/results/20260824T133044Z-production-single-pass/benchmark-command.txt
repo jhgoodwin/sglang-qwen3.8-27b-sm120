@@ -1,0 +1,1 @@
+python3 bench/prompt_runner.py --prompt-dir bench/prompts --base-url http://127.0.0.1:11436 --output bench/results/20260824T133044Z-production-single-pass/coding-single-pass.json

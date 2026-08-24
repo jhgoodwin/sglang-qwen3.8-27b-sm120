@@ -1,0 +1,1 @@
+{"8000/tcp":[{"HostIp":"127.0.0.1","HostPort":"11436"}]} qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb
