@@ -221,4 +221,4 @@ docker run --rm --name "$name" "${pid_namespace[@]}" --gpus "$gpu_request" --shm
   -e HF_HOME=/hf-cache -e TORCHINDUCTOR_CACHE_DIR=/cache/torch -e TRITON_CACHE_DIR=/cache/triton -e FLASHINFER_WORKSPACE_DIR=/cache/flashinfer \
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   "${evidence_env[@]}" \
-  "$image" python3 -m sglang.launch_server --model-path "$model_container_path" --trust-remote-code --kv-cache-dtype fp8_e4m3 --context-length "$context" --tp-size "$tp" --host 0.0.0.0 --port "$container_port" "${extra[@]}"
+  "$image" sglang serve --model-path "$model_container_path" --trust-remote-code --kv-cache-dtype fp8_e4m3 --context-length "$context" --tp-size "$tp" --host 0.0.0.0 --port "$container_port" "${extra[@]}"

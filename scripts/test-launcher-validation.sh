@@ -10,6 +10,9 @@ chmod +x "$tmp/bin/nvidia-smi" "$tmp/bin/docker"
 valid="registry.example/qwen:tested@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 qualified_image='qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb'
 
+! grep -Fq -- 'python3 -m sglang.launch_server' "$repo/serve.sh"
+grep -Fq -- 'sglang serve' "$repo/serve.sh"
+
 # No PROFILE or IMAGE is the qualified production easy button. Model paths are
 # overridden only to keep this launcher test independent of the host filesystem;
 # a static check below locks the workstation's exact snapshot defaults.
@@ -24,6 +27,8 @@ grep -Fq -- '--max-mamba-cache-size 8' "$tmp/production-default.args"
 grep -Fq -- '--speculative-algorithm DFLASH' "$tmp/production-default.args"
 grep -Fq -- '--speculative-num-draft-tokens 8' "$tmp/production-default.args"
 grep -Fq -- "-v $tmp/draft:/models/Qwen3.8-27B-DFlash2:ro" "$tmp/production-default.args"
+grep -Fq -- 'sglang serve' "$tmp/production-default.args"
+! grep -Fq -- 'python3 -m sglang.launch_server' "$tmp/production-default.args"
 ! grep -Fq -- '--pid=host' "$tmp/production-default.args"
 ! grep -Fq -- 'SGLANG_C2C3_EVIDENCE_PATH' "$tmp/production-default.args"
 ! grep -Fq -- '--mamba-full-memory-ratio' "$tmp/production-default.args"
@@ -40,6 +45,8 @@ run_profile() {
   grep -Fq -- "-p 127.0.0.1:$expected_port:8000" "$tmp/$profile.args"
   grep -Fq -- "--tp-size $expected_tp" "$tmp/$profile.args"
   grep -Fq -- '--port 8000' "$tmp/$profile.args"
+  grep -Fq -- 'sglang serve' "$tmp/$profile.args"
+  ! grep -Fq -- 'python3 -m sglang.launch_server' "$tmp/$profile.args"
   grep -Fq -- '--host 0.0.0.0' "$tmp/$profile.args"
   grep -Fq -- '--shm-size=16g' "$tmp/$profile.args"
   grep -Fq -- '--ulimit memlock=-1' "$tmp/$profile.args"
