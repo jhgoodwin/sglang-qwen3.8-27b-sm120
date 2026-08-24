@@ -76,7 +76,7 @@
     "forced_output_success": "exact requested token count and expected length termination",
     "natural_stop_before_cap_is_not_forced_capacity_evidence": true,
     "failure_buckets": ["timeout", "oom", "restart", "http_error", "incomplete", "clamped", "wrong_occupancy"],
-    "required_evidence": ["server_args", "resolved_capacity", "memory_pools", "cuda_graphs", "free_vram", "queue_timestamps", "ttft", "itl", "max_itl", "partial_streams"]
+    "required_evidence": ["observed_server_args", "launch_provenance", "resolved_capacity", "memory_pools", "cuda_graphs", "free_vram", "queue_timestamps", "ttft", "itl", "max_itl", "partial_streams"]
   },
   "stages": [
     {

@@ -13,6 +13,7 @@ import datetime as dt
 import json
 import math
 import pathlib
+import re
 import subprocess
 import threading
 import time
@@ -32,6 +33,47 @@ def _utc(epoch: float | None = None) -> str:
 
 def _stamp() -> dict[str, Any]:
     return {"utc": _utc(), "monotonic_s": time.monotonic()}
+
+
+def _proc_identity(pid: int) -> str:
+    """Return Linux start identity, rejecting a missing or malformed process."""
+    if type(pid) is not int or pid <= 0:
+        raise ValueError("scheduler pid must be positive")
+    stat = pathlib.Path(f"/proc/{pid}/stat").read_text()
+    tail = stat[stat.rfind(")") + 2 :].split()
+    if len(tail) <= 19 or not tail[19].isdigit():
+        raise ValueError("malformed /proc stat for scheduler pid")
+    return f"pid:{pid}:start_ticks:{tail[19]}"
+
+
+def bootstrap_server_pid(scheduler_path: pathlib.Path) -> tuple[int, str]:
+    """Extract and validate the first primary scheduler identity after warmup."""
+    if not scheduler_path.is_file():
+        raise ValueError("scheduler evidence file does not exist")
+    found: tuple[int, str] | None = None
+    for line_number, line in enumerate(scheduler_path.read_text().splitlines(), 1):
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise ValueError(f"malformed scheduler evidence line {line_number}") from error
+        if (not isinstance(row, dict) or row.get("schema") != "qwen38.server-scheduler-event" or
+                row.get("source") != "server_scheduler"):
+            raise ValueError(f"unsupported scheduler evidence line {line_number}")
+        identity = row.get("server_process_id")
+        match = re.match(r"^pid:(\d+):start_ticks:(\d+)$", identity or "")
+        if not match:
+            raise ValueError(f"malformed scheduler process identity at line {line_number}")
+        candidate = (int(match.group(1)), identity)
+        if found is None:
+            found = candidate
+        elif candidate != found:
+            raise ValueError("scheduler evidence contains multiple process identities")
+    if found is None:
+        raise ValueError("no valid primary scheduler event available for PID bootstrap")
+    actual = _proc_identity(found[0])
+    if actual != found[1]:
+        raise ValueError("scheduler evidence PID is stale or belongs to another process")
+    return found
 
 
 def build_body(spec: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
@@ -452,7 +494,8 @@ def main(argv: list[str] | None = None) -> int:
     live.add_argument("--server-evidence", required=True, type=pathlib.Path)
     live.add_argument("--scheduler-events", required=True, type=pathlib.Path)
     live.add_argument("--gpu", default="0")
-    live.add_argument("--server-pid", required=True, type=int)
+    live.add_argument("--server-pid", required=True,
+                      help="primary scheduler PID, or auto after short warmup evidence")
     live.add_argument("--timeout", type=float, default=1800)
     live.add_argument("--sample-interval", type=float, default=1.0)
     args = parser.parse_args(argv)
@@ -463,8 +506,10 @@ def main(argv: list[str] | None = None) -> int:
         server = json.loads(args.server_evidence.read_text())
         if args.sample_interval <= 0 or args.timeout <= 0:
             parser.error("--sample-interval and --timeout must be positive")
+        pid = (bootstrap_server_pid(args.scheduler_events)[0]
+               if args.server_pid == "auto" else int(args.server_pid))
         document = run_concurrent(spec, server, args.scheduler_events, args.gpu,
-                                  args.timeout, args.sample_interval, server_pid=args.server_pid)
+                                  args.timeout, args.sample_interval, server_pid=pid)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n")
     return 0

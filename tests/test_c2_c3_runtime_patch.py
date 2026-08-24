@@ -171,6 +171,58 @@ class RuntimePatchTests(unittest.TestCase):
         )
         self.assertLess(started.lineno, output_gate.lineno)
 
+    def test_runtime_server_info_evidence_is_wired_to_scheduler_state(self):
+        scheduler = ast.parse((self.srt / "managers/scheduler.py").read_text())
+        state = _function(scheduler, "get_internal_state")
+        self.assertIn("runtime_evidence", _calls(state))
+        self.assertIn("c2c3_evidence", [node.value for node in ast.walk(state)
+                                         if isinstance(node, ast.Constant) and isinstance(node.value, str)])
+
+        # Guard the collector fixture's exact endpoint organization: ServerArgs
+        # is flattened into the top-level response and internal states stay a list.
+        http_server = ast.parse((self.srt / "entrypoints/http_server.py").read_text())
+        endpoint = _function(http_server, "server_info")
+        returns = [node for node in ast.walk(endpoint) if isinstance(node, ast.Return)]
+        rendered = ast.dump(returns[-1])
+        self.assertIn("asdict", rendered)
+        self.assertIn("internal_states", rendered)
+
+    def test_runtime_measurement_counts_physical_dflash_lists_and_graphs(self):
+        module = self._load_evidence()
+
+        class Tensor:
+            def __init__(self, elements, element_size, dtype="torch.float32"):
+                self.elements, self.size, self.dtype = elements, element_size, dtype
+            def numel(self): return self.elements
+            def element_size(self): return self.size
+
+        state = types.SimpleNamespace(
+            conv=[Tensor(10, 2)], temporal=Tensor(20, 4),
+            intermediate_ssm=Tensor(30, 4), intermediate_conv_window=[Tensor(999, 2)],
+            replayssm_d=None, replayssm_k=None, replayssm_g=None,
+            replayssm_rawv=None, replayssm_rawk=None, replayssm_beta=None,
+        )
+        mamba = types.SimpleNamespace(mamba_cache=state,
+                                      _intermediate_conv_window_phys=[Tensor(5, 2)])
+        pool = types.SimpleNamespace(mamba_pool=mamba,
+                                     mamba_allocator=types.SimpleNamespace(size=8))
+        kv = types.SimpleNamespace(mem_usage=1.0, dtype="torch.float8_e4m3fn")
+        runner = types.SimpleNamespace(decode_cuda_graph_runner=types.SimpleNamespace(capture_bs=[1, 2]))
+        scheduler = types.SimpleNamespace(
+            token_to_kv_pool_allocator=types.SimpleNamespace(get_kvcache=lambda: kv),
+            req_to_token_pool=pool,
+            tp_worker=types.SimpleNamespace(model_runner=runner, graph_memory_usage={"decode": .25}),
+            draft_worker=types.SimpleNamespace(graph_memory_usage={"draft_decode": .125}),
+            max_running_requests=2, model_config=types.SimpleNamespace(context_len=262144),
+            max_total_num_tokens=262144, ps=types.SimpleNamespace(tp_size=1),
+            server_args=types.SimpleNamespace(speculative_num_draft_tokens=8),
+        )
+        measured = module.runtime_evidence(scheduler)
+        self.assertEqual(measured["memory_pools"]["mamba_state_cache"]["bytes"], 100)
+        self.assertEqual(measured["memory_pools"]["dflash_intermediate"]["bytes"], 130)
+        self.assertEqual(measured["cuda_graphs"]["captured_batch_sizes"], [1, 2])
+        self.assertEqual(measured["cuda_graphs"]["memory_bytes"], int(.375 * 1024 ** 3))
+
     def test_real_sse_builder_serializes_token_pairs(self):
         class Struct:
             def __init_subclass__(cls, **kwargs):

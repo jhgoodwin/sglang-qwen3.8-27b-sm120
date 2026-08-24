@@ -78,20 +78,27 @@ def raw_run(count=2, capacity=2):
                 "schema": importer.SCHEDULER_SCHEMA, "source": "server_scheduler",
                 "timestamp": iso(at), "event": name, "client_request_id": rid,
                 "server_process_id": "pid:7:start_ticks:9", "running": running, "queued": queue_count}})
+    model_path = "/models/Qwen3.8-27B-cache/snapshots/319f741cce68d7914884900c138a1fbb70a42f30"
+    draft_path = "/models/Qwen3.8-27B-DFlash2-cache/snapshots/dedf8df68adfb1afeaf7b7480c0a0243108177b4"
+    container_command = ["python3", "-m", "sglang.launch_server", "--model-path", model_path,
+        "--speculative-draft-model-path", draft_path, "--context-length", "262144", "--tp-size", "1",
+        "--kv-cache-dtype", "fp8_e4m3", "--attention-backend", "flashinfer",
+        "--chunked-prefill-size", "2048", "--mamba-ssm-dtype", "float32",
+        "--mem-fraction-static", "0.85", "--mamba-radix-cache-strategy", "extra_buffer_lazy",
+        "--speculative-algorithm", "DFLASH", "--speculative-num-draft-tokens", "8",
+        "--max-running-requests", str(capacity), "--max-mamba-cache-size", str(mamba_slots)]
     return {"schema": runner.SCHEMA, "version": 1, "run_id": "run-1", "profile": profile,
         "stage": "B-near-native-prefill", "repetition": 1,
         "timestamps": {"collector_start": stamp(-1), "barrier_release": stamp(0), "run_end": stamp(3)},
         "request_count": count, "requests": requests,
-        "server": {"server_args": [
-                "--model-path", "/models/Qwen3.8-27B-cache/snapshots/319f741cce68d7914884900c138a1fbb70a42f30",
-                "--context-length", "262144", "--tp-size", "1",
-                "--kv-cache-dtype", "fp8_e4m3", "--attention-backend", "flashinfer",
-                "--chunked-prefill-size", "2048", "--mamba-ssm-dtype", "float32",
-                "--mem-fraction-static", "0.85", "--mamba-radix-cache-strategy", "extra_buffer_lazy",
-                "--max-running-requests", str(capacity), "--max-mamba-cache-size", str(mamba_slots),
-                "--speculative-algorithm", "DFLASH", "--speculative-draft-model-path",
-                "/models/Qwen3.8-27B-DFlash2-cache/snapshots/dedf8df68adfb1afeaf7b7480c0a0243108177b4",
-                "--speculative-num-draft-tokens", "8"],
+        "server": {"observed_server_args": {
+                "model_path": model_path, "speculative_draft_model_path": draft_path,
+                "context_length": 262144, "tp_size": 1, "kv_cache_dtype": "fp8_e4m3",
+                "attention_backend": "flashinfer", "chunked_prefill_size": 2048,
+                "mamba_ssm_dtype": "float32", "mem_fraction_static": 0.85,
+                "mamba_radix_cache_strategy": "extra_buffer_lazy", "speculative_algorithm": "DFLASH",
+                "speculative_num_draft_tokens": 8, "max_running_requests": capacity,
+                "max_mamba_cache_size": mamba_slots},
             "identities": {"image_digest": importer.EXPECTED_IDENTITIES["image_digest"],
                 "source_revision": importer.EXPECTED_IDENTITIES["source_revision"],
                 "model_snapshot": importer.EXPECTED_IDENTITIES["model_snapshot"],
@@ -99,8 +106,13 @@ def raw_run(count=2, capacity=2):
                 "recipe_identity": importer.EXPECTED_IDENTITIES["recipe_identity"],
                 "hardware_identity": "GPU-uuid"},
             "resolved_capacity": {"max_running_requests": capacity, "context_length": 262144,
-                "max_total_num_tokens": 262144, "max_output_tokens": 131072,
-                "tp_size": 1, "max_mamba_cache_size": mamba_slots, "planned_port": planned_port},
+                "max_total_num_tokens": 262144, "tp_size": 1, "max_mamba_cache_size": mamba_slots},
+            "campaign_request_limits": {"max_output_tokens": 131072},
+            "launch_metadata": {"planned_port": planned_port, "observed_endpoint": f"http://127.0.0.1:{planned_port}"},
+            "launch_provenance": {"source": "docker_inspect", "artifact_reference": "launch.json",
+                "image_digest": importer.EXPECTED_IDENTITIES["image_digest"],
+                "source_revision": importer.EXPECTED_IDENTITIES["source_revision"],
+                "container_name": "qwen3.8-27b-sglang", "container_command": container_command},
             "memory_pools": {"source": "server_info",
                 "kv_cache": {"bytes": 100, "dtype": "fp8_e4m3"},
                 "mamba_state_cache": {"bytes": 200, "dtype": "float32", "slots": mamba_slots},
@@ -317,7 +329,7 @@ class CampaignImporterTests(unittest.TestCase):
 
     def test_fail_closed_server_gpu_process_and_restart_evidence(self):
         mutations = [
-            lambda r: r["server"].update(server_args=["UNRESOLVED"]),
+            lambda r: r["server"].update(observed_server_args={"bad": "UNRESOLVED"}),
             lambda r: r["server"]["identities"].update(image_digest="UNRESOLVED"),
             lambda r: r["server"].update(resolved_capacity={}),
             lambda r: r["server"].update(memory_pools={}),
@@ -332,24 +344,21 @@ class CampaignImporterTests(unittest.TestCase):
                 raw = raw_run(); mutation(raw)
                 self.assertFalse(importer.validate_and_import(raw)["accepted"])
 
-    def test_server_argument_vector_requires_exact_unambiguous_c2_c3_recipe(self):
+    def test_observed_server_fields_and_launch_provenance_require_exact_recipe(self):
         self.assertTrue(importer.validate_and_import(raw_run(count=3, capacity=3))["accepted"])
         mutations = [
-            lambda args: args.__setitem__(slice(None), ["--wrong-profile-entirely"]),
-            lambda args: args.remove("--attention-backend"),
-            lambda args: args.extend(["--max-running-requests", "2"]),
-            lambda args: args.extend(["--max-running-requests", "3"]),
-            lambda args: args.extend(["--mamba-full-memory-ratio", "0.22"]),
-            lambda args: args.append("--disable-cuda-graph"),
-            lambda args: args.__setitem__(args.index("float32"), "bfloat16"),
-            lambda args: args.__setitem__(args.index("DFLASH"), "EAGLE"),
-            lambda args: args.__setitem__(args.index("extra_buffer_lazy"), "extra_buffer"),
-            lambda args: args.__setitem__(args.index(next(value for value in args if "/snapshots/319" in value)),
-                                          "/models/wrong/snapshots/" + "0" * 40),
+            lambda server: server["observed_server_args"].pop("attention_backend"),
+            lambda server: server["observed_server_args"].update(max_running_requests=3),
+            lambda server: server["observed_server_args"].update(mamba_ssm_dtype="bfloat16"),
+            lambda server: server["observed_server_args"].update(speculative_algorithm="EAGLE"),
+            lambda server: server["observed_server_args"].update(mamba_radix_cache_strategy="extra_buffer"),
+            lambda server: server["observed_server_args"].update(model_path="/models/wrong/snapshots/" + "0" * 40),
+            lambda server: server["launch_provenance"]["container_command"].extend(["--mamba-full-memory-ratio", "0.22"]),
+            lambda server: server["launch_provenance"].update(image_digest="sha256:" + "0" * 64),
         ]
         for mutation in mutations:
             with self.subTest(mutation=mutation):
-                raw = raw_run(); mutation(raw["server"]["server_args"])
+                raw = raw_run(); mutation(raw["server"])
                 self.assertFalse(importer.validate_and_import(raw)["accepted"])
 
     def test_pool_and_graph_evidence_requires_semantic_measured_shapes(self):
@@ -374,17 +383,20 @@ class CampaignImporterTests(unittest.TestCase):
                 raw = raw_run(); mutation(raw["server"])
                 self.assertFalse(importer.validate_and_import(raw)["accepted"])
 
-    def test_resolved_capacity_includes_output_state_pin_tp_and_planned_port(self):
+    def test_capacity_and_request_metadata_are_separate(self):
         mutations = [
-            lambda c: c.update(max_output_tokens=131071),
             lambda c: c.update(max_mamba_cache_size=4),
             lambda c: c.update(tp_size=2),
-            lambda c: c.update(planned_port=11448),
+            lambda c: c.update(max_running_requests=3),
         ]
         for mutation in mutations:
             with self.subTest(mutation=mutation):
                 raw = raw_run(); mutation(raw["server"]["resolved_capacity"])
                 self.assertFalse(importer.validate_and_import(raw)["accepted"])
+        raw = raw_run(); raw["server"]["campaign_request_limits"]["max_output_tokens"] = 131071
+        self.assertFalse(importer.validate_and_import(raw)["accepted"])
+        raw = raw_run(); raw["server"]["launch_metadata"]["planned_port"] = 11448
+        self.assertFalse(importer.validate_and_import(raw)["accepted"])
 
     def test_malformed_or_interval_misaligned_evidence_is_rejected(self):
         raw = raw_run(); raw["scheduler_evidence"].append({"event": {"malformed_line": "{"}})

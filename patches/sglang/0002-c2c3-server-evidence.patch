@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..0781807798daca71cf1b6c56de2fdc8ce334d97d
 --- /dev/null
 +++ b/python/sglang/srt/campaign_evidence.py
-@@ -0,0 +1,184 @@
+@@ -0,0 +1,239 @@
 +"""Opt-in, fail-closed evidence for the Qwen3.8 C2/C3 campaign.
 +
 +Set ``SGLANG_C2C3_EVIDENCE_PATH`` to an absolute JSONL path before starting
@@ -177,6 +177,61 @@ index 0000000000000000000000000000000000000000..0781807798daca71cf1b6c56de2fdc8c
 +            self._queued.discard(request_id)
 +            self._started.discard(request_id)
 +            self._emit("failed" if failed else "completed", request_id)
++
++
++def _tensor_bytes(value: Any) -> int:
++    """Count physical tensor values, including list-valued Mamba layer state."""
++    if value is None:
++        return 0
++    if isinstance(value, (list, tuple)):
++        return sum(_tensor_bytes(item) for item in value)
++    return int(value.numel() * value.element_size())
++
++
++def runtime_evidence(scheduler: Any) -> dict[str, Any] | None:
++    """Read measured pools/graphs from one live scheduler; return None if unavailable."""
++    try:
++        kv = scheduler.token_to_kv_pool_allocator.get_kvcache()
++        kv_bytes = int(round(float(kv.mem_usage) * (1024 ** 3)))
++        raw_kv_dtype = str(getattr(kv, "dtype", ""))
++        kv_dtype = "fp8_e4m3" if "float8" in raw_kv_dtype and "e4m3" in raw_kv_dtype else ""
++        pool = scheduler.req_to_token_pool
++        mamba = getattr(pool, "mamba_pool", None)
++        state = getattr(mamba, "mamba_cache", None)
++        mamba_dtype = str(getattr(getattr(state, "temporal", None), "dtype", ""))
++        base_names = ("conv", "temporal", "replayssm_d", "replayssm_k", "replayssm_g",
++                      "replayssm_rawv", "replayssm_rawk", "replayssm_beta")
++        mamba_bytes = sum(_tensor_bytes(getattr(state, name, None)) for name in base_names)
++        # The logical conv-window view can alias storage and over-report.  The
++        # pool retains the physical tensors specifically for exact accounting.
++        dflash_bytes = _tensor_bytes(getattr(state, "intermediate_ssm", None))
++        dflash_bytes += _tensor_bytes(getattr(mamba, "_intermediate_conv_window_phys", None))
++        if "float32" not in mamba_dtype:
++            mamba_bytes = 0
++        slots = int(getattr(pool, "mamba_allocator").size)
++        target = getattr(getattr(scheduler.tp_worker, "model_runner", None), "decode_cuda_graph_runner", None)
++        batches = list(getattr(target, "capture_bs", []) or []) if target is not None else []
++        batches = sorted({int(x) for x in batches if int(x) > 0})
++        graph_maps = [getattr(scheduler.tp_worker, "graph_memory_usage", {})]
++        if scheduler.draft_worker is not None:
++            graph_maps.append(getattr(scheduler.draft_worker, "graph_memory_usage", {}))
++        graph_bytes = int(sum(sum(float(v) for v in graph.values()) for graph in graph_maps) * (1024 ** 3))
++        if min(kv_bytes, mamba_bytes, dflash_bytes, graph_bytes) <= 0 or not batches:
++            return None
++        return {"source": "runtime_introspection", "resolved_capacity": {
++            "max_running_requests": int(scheduler.max_running_requests),
++            "context_length": int(scheduler.model_config.context_len),
++            "max_total_num_tokens": int(scheduler.max_total_num_tokens),
++            "tp_size": int(scheduler.ps.tp_size),
++            "max_mamba_cache_size": slots},
++            "memory_pools": {"source": "runtime_introspection",
++                "kv_cache": {"bytes": kv_bytes, "dtype": kv_dtype},
++                "mamba_state_cache": {"bytes": mamba_bytes, "dtype": "float32", "slots": slots},
++                "dflash_intermediate": {"bytes": dflash_bytes, "states": int(scheduler.server_args.speculative_num_draft_tokens)}},
++            "cuda_graphs": {"source": "runtime_introspection", "enabled": True,
++                "captured_batch_sizes": batches, "memory_bytes": graph_bytes}}
++    except (AttributeError, TypeError, ValueError, RuntimeError):
++        return None
 +
 +
 +def get_scheduler_recorder(*, primary_rank: bool = True):
@@ -355,7 +410,7 @@ index b617ed301d4b8c051a8c828e06eea53056aaa99c..b2a1da706801d9dfde2bfc059699d32a
  from sglang.srt.layers.quantization.unquant import initialize_bf16_gemm_config
  from sglang.srt.lora.lora_drainer import LoRADrainer
  from sglang.srt.lora.lora_overlap_loader import LoRAOverlapLoader
-+from sglang.srt.campaign_evidence import get_scheduler_recorder
++from sglang.srt.campaign_evidence import get_scheduler_recorder, runtime_evidence
  from sglang.srt.managers.disagg_service import maybe_create_ascend_config_store
  from sglang.srt.managers.hisparse_coordinator import HiSparseCoordinator
  from sglang.srt.managers.io_struct import (
@@ -390,6 +445,11 @@ index b617ed301d4b8c051a8c828e06eea53056aaa99c..b2a1da706801d9dfde2bfc059699d32a
          if adder.preempt_list:
              for req in adder.preempt_list:
                  self._add_request_to_queue(req)
+@@ -4379,0 +4390,4 @@ class Scheduler:
++        if self.c2c3_evidence.__class__.__name__ != "NullRecorder":
++            observed_evidence = runtime_evidence(self)
++            if observed_evidence is not None:
++                ret["c2c3_evidence"] = observed_evidence
 diff --git a/python/sglang/srt/managers/scheduler_components/output_streamer.py b/python/sglang/srt/managers/scheduler_components/output_streamer.py
 index 18a42407af7eb1461aad41a9e35e85b671031f2c..ac7f9d94af795c80328b5fa7bb3ea27afcd317e8 100644
 --- a/python/sglang/srt/managers/scheduler_components/output_streamer.py

@@ -227,6 +227,14 @@
   fields. They make no admission, memory, throughput, queue-wave, or GPU claim;
   those remain gated on a built overlay and later live campaign profiles.
 
+## C2/C3 runtime evidence bridge (2026-08-24)
+
+- Scope: expose directly measured pool, DFlash, CUDA-graph, and resolved-capacity evidence through the opt-in scheduler state used by `/server_info`.
+- Decision: `resolved_capacity` contains observed runtime facts only. Campaign output limits and planned ports remain explicit `campaign_request_limits` and `launch_metadata` fields. Because pinned SGLang returns a flattened `ServerArgs` dataclass rather than argv, the collector records an explicit `observed_server_args` mapping and rejects any missing or drifted campaign field.
+- Decision: `/server_info` cannot attest its container. Image ID/reference, source-revision label, exact launch command, host-to-container model mounts, and GPU UUID come from a separately retained Docker/NVIDIA provenance artifact. The image must match the locked `c2-c3-evidence-overlay` and runnable profile; its parent overlay is not accepted.
+- Decision: `--server-pid auto` is allowed only after a valid scheduler JSONL transition identifies a live `/proc` PID/start-ticks pair; stale, malformed, or multiple identities fail closed.
+- Consequence: no benchmark result is importable from descriptive metadata or client timing, and the live server must expose positive measured pool/graph fields before a GPU probe.
+
 ## C2/C3 launcher evidence profiles (2026-08-24)
 
 - Scope: make the queued C2 and C3 server processes independently launchable

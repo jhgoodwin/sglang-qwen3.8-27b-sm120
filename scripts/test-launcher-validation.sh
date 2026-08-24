@@ -229,7 +229,7 @@ chmod +x "$tmp/bin/ss"
 
 # Queued C2/C3 profiles use the pinned evidence overlay and reserve an
 # operator-owned JSONL target without changing the existing profile contract.
-c2_image='qwen38-c2c3-evidence@sha256:cb7a56b3cc39872f43732a58e5adc13361bb24a53d1425ab878d2829a90ac6d0'
+c2_image='qwen38-c2c3-evidence@sha256:a63bbe5a4a65a7d54de1329333825f38eac6a79f40efb86c497cf8f78ace5967'
 run_c2c3() {
   local profile=$1 port=$2 max_running=$3 mamba_size=$4
   local evidence="$tmp/evidence-$profile"
@@ -321,7 +321,12 @@ assert variant["patch_application"] == {
     "patches/sglang/0001-noavx-disable-nixl-ep-import.patch": "inherited_from_parent_overlay_and_verified_before_skip",
     "patches/sglang/0002-c2c3-server-evidence.patch": "applied_by_this_overlay_build",
 }
-assert variant["status"] == "built_no_gpu_import_verified"
+assert variant["verification"] == {
+    "source_revision_label": "5f55db35e926d50676f75b812640ea2410b0fe0e",
+    "evidence_label": "opt in with SGLANG_C2C3_EVIDENCE_PATH",
+    "no_gpu_import": "runtime_evidence NullRecorder",
+}
+assert variant["status"] == "rebuilt_runtime_bridge_no_gpu_import_verified"
 print("C2/C3 evidence overlay parent and patch provenance passed")
 PY
 
@@ -331,7 +336,7 @@ import sys
 
 with open(sys.argv[1]) as handle:
     profiles = json.load(handle)["profiles"]
-image = "qwen38-c2c3-evidence@sha256:cb7a56b3cc39872f43732a58e5adc13361bb24a53d1425ab878d2829a90ac6d0"
+image = "qwen38-c2c3-evidence@sha256:a63bbe5a4a65a7d54de1329333825f38eac6a79f40efb86c497cf8f78ace5967"
 for name, port, running, cache in (("c2", 11447, "2", "8"), ("c3", 11448, "3", "12")):
     profile = profiles[name]
     args = profile["extra_args"]

@@ -116,22 +116,34 @@ only accepted admission/queue source; response headers, client timing, and
 aggregate-only gauges do not establish scheduler admission.
 
 ```sh
+python3 bench/server_evidence.py capture-provenance \
+  --container qwen3.8-27b-sglang --profile c2 --gpu 0 \
+  --output launch-provenance.json --raw-output raw-docker-inspect.json
+python3 bench/server_evidence.py collect \
+  --url http://127.0.0.1:11447 --profile c2 \
+  --launch-provenance launch-provenance.json \
+  --output server-evidence.json --raw-output raw-server-info.json
 python3 bench/c2_c3_runner.py run --spec run-spec.json --output raw-run.json \
   --server-evidence server-evidence.json --scheduler-events scheduler.jsonl \
-  --server-pid PID --gpu 0 --sample-interval 1
+  --server-pid auto --gpu 0 --sample-interval 1
 python3 bench/c2_c3_importer.py raw-run.json --output imported-run.json
 ```
 
 The server-evidence object must contain immutable image/source/model/draft,
-recipe, and hardware identities; the exact server argument vector; resolved
-native context and profile concurrency; memory-pool and CUDA-graph details.
-The argument vector is parsed without normalization: required flags must occur
-exactly once with the campaign values for TP1, FP8 KV, FP32 SSM, FlashInfer,
-2,048-token chunks, 0.85 static memory, `extra_buffer_lazy`, DFlash8, native
-context, profile concurrency, and the C2/C3 Mamba state pin. The initial
-profiles reject `--mamba-full-memory-ratio` and `--disable-cuda-graph`.
-Resolved capacity must separately record the 131,072 campaign output cap,
-native context, TP, state pin, and planned profile port.
+recipe, and hardware identities; flattened observed server fields; independent
+launch provenance; resolved native context and profile concurrency; memory-pool
+and CUDA-graph details. Pinned SGLang's `/server_info` is a flattened dataclass,
+not an argv record, so it is retained as `observed_server_args`. Docker inspect
+separately supplies the immutable image, source-revision label, exact container
+command, model mount mapping, and GPU UUID. The initial command must omit
+`--mamba-full-memory-ratio` and `--disable-cuda-graph`.
+Resolved capacity records only observed runtime facts: native context, TP,
+profile concurrency, token capacity, and state pin. The 131,072 output cap is
+stored as `campaign_request_limits.max_output_tokens`; the planned profile port
+is stored as `launch_metadata.planned_port`, separately from the observed API
+endpoint. `bench/server_evidence.py` validates both sources and preserves their
+raw references. The accepted image is read from the locked C2/C3 evidence
+overlay, never hardcoded to its parent image.
 
 Memory evidence is not an arbitrary metadata map. It records a non-placeholder
 measurement source plus positive byte counts for the FP8 KV pool, FP32 Mamba

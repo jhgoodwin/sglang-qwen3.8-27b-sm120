@@ -23,8 +23,18 @@ SCHEDULER_SCHEMA = "qwen38.server-scheduler-event"
 PLACEHOLDERS = ("unresolved", "unknown", "placeholder", "todo", "tbd")
 IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 REVISION = re.compile(r"^[0-9a-f]{40}$")
+REPO = pathlib.Path(__file__).resolve().parents[1]
+
+
+def _locked_image_digest() -> str:
+    lock = json.loads((REPO / "source.lock.json").read_text())
+    return lock["runtime_variants"]["c2-c3-evidence-overlay"]["image_digest"]
+
+
 EXPECTED_IDENTITIES = {
-    "image_digest": "sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d",
+    # Read from the evidence-overlay lock, rather than pinning its parent image.
+    # A rebuilt overlay becomes eligible only after the supervisor updates the lock.
+    "image_digest": _locked_image_digest(),
     "source_revision": "5f55db35e926d50676f75b812640ea2410b0fe0e",
     "model_snapshot": "/data/models/models--RadixArk--Qwen3.8-27B-NVFP4/snapshots/319f741cce68d7914884900c138a1fbb70a42f30",
     "draft_model_snapshot": "/data/models/models--incoai--Qwen3.8-27B-DFlash2/snapshots/dedf8df68adfb1afeaf7b7480c0a0243108177b4",
@@ -35,16 +45,16 @@ PROFILE_RUNTIME = {
     "c3": {"max_running_requests": 3, "max_mamba_cache_size": 12, "planned_port": 11448},
 }
 REQUIRED_SERVER_ARGS = {
-    "--context-length": "262144",
-    "--tp-size": "1",
-    "--kv-cache-dtype": "fp8_e4m3",
-    "--attention-backend": "flashinfer",
-    "--chunked-prefill-size": "2048",
-    "--mamba-ssm-dtype": "float32",
-    "--mem-fraction-static": "0.85",
-    "--mamba-radix-cache-strategy": "extra_buffer_lazy",
-    "--speculative-algorithm": "DFLASH",
-    "--speculative-num-draft-tokens": "8",
+    "context_length": 262144,
+    "tp_size": 1,
+    "kv_cache_dtype": "fp8_e4m3",
+    "attention_backend": "flashinfer",
+    "chunked_prefill_size": 2048,
+    "mamba_ssm_dtype": "float32",
+    "mem_fraction_static": 0.85,
+    "mamba_radix_cache_strategy": "extra_buffer_lazy",
+    "speculative_algorithm": "DFLASH",
+    "speculative_num_draft_tokens": 8,
 }
 EVIDENCE_SOURCES = {"server_info", "server_log", "runtime_introspection"}
 
@@ -77,36 +87,28 @@ def _placeholder(value: Any) -> bool:
     return value is None
 
 
-def _parse_required_args(args: list[str]) -> tuple[dict[str, str], list[str]]:
-    """Extract campaign flags while rejecting ambiguous vector evidence."""
-    values: dict[str, str] = {}
+def _command_flags(command: Any) -> tuple[dict[str, str | bool], list[str]]:
+    """Parse the independently observed container command, fail-closing ambiguity."""
+    if not isinstance(command, list) or not command or not all(isinstance(x, str) and x for x in command):
+        return {}, ["launch provenance container_command is missing or malformed"]
+    values: dict[str, str | bool] = {}
     errors: list[str] = []
-    watched = set(REQUIRED_SERVER_ARGS) | {
-        "--max-running-requests", "--max-mamba-cache-size",
-        "--speculative-draft-model-path", "--model-path",
-        "--mamba-full-memory-ratio", "--disable-cuda-graph",
-    }
     index = 0
-    while index < len(args):
-        item = args[index]
+    while index < len(command):
+        item = command[index]
+        if not item.startswith("--"):
+            index += 1
+            continue
         flag, separator, inline = item.partition("=")
-        if flag not in watched:
+        if separator:
+            value: str | bool = inline
+        elif index + 1 < len(command) and not command[index + 1].startswith("--"):
+            value = command[index + 1]
             index += 1
-            continue
-        if flag in ("--disable-cuda-graph",):
-            value = "true"
-        elif separator:
-            value = inline
-        elif index + 1 >= len(args) or args[index + 1].startswith("--"):
-            errors.append(f"server argument lacks value: {flag}")
-            index += 1
-            continue
         else:
-            value = args[index + 1]
-            index += 1
+            value = True
         if flag in values:
-            qualifier = "conflicting" if values[flag] != value else "duplicate"
-            errors.append(f"{qualifier} server argument: {flag}")
+            errors.append(f"duplicate launch argument: {flag}")
         else:
             values[flag] = value
         index += 1
@@ -325,37 +327,66 @@ def _validate_server(raw: dict[str, Any]) -> list[str]:
         for key, expected in EXPECTED_IDENTITIES.items():
             if identities.get(key) != expected:
                 errors.append(f"server identity differs from locked campaign input: {key}")
-    args = server.get("server_args")
-    if not isinstance(args, list) or not args or not all(isinstance(arg, str) and arg for arg in args) or _placeholder(args):
-        errors.append("server_args must be non-placeholder strings")
-        parsed_args = {}
+    args = server.get("observed_server_args")
+    if not isinstance(args, dict) or _placeholder(args):
+        errors.append("observed_server_args must be a non-placeholder /server_info mapping")
     else:
-        parsed_args, argument_errors = _parse_required_args(args)
-        errors.extend(argument_errors)
         expected_profile = PROFILE_RUNTIME.get(raw.get("profile"))
         expected_args = dict(REQUIRED_SERVER_ARGS)
         if expected_profile is not None:
             expected_args.update({
-                "--max-running-requests": str(expected_profile["max_running_requests"]),
-                "--max-mamba-cache-size": str(expected_profile["max_mamba_cache_size"]),
+                "max_running_requests": expected_profile["max_running_requests"],
+                "max_mamba_cache_size": expected_profile["max_mamba_cache_size"],
             })
-        for flag, expected in expected_args.items():
-            if parsed_args.get(flag) != expected:
-                errors.append(f"server argument {flag} must equal {expected}")
-        for path_flag in ("--model-path", "--speculative-draft-model-path"):
-            if path_flag not in parsed_args or _placeholder(parsed_args.get(path_flag)):
-                errors.append(f"server argument {path_flag} requires a resolved path")
+        for field, expected in expected_args.items():
+            if args.get(field) != expected:
+                errors.append(f"observed server field {field} must equal {expected}")
+        for path_field in ("model_path", "speculative_draft_model_path"):
+            if path_field not in args or _placeholder(args.get(path_field)):
+                errors.append(f"observed server field {path_field} requires a resolved path")
         expected_revisions = {
-            "--model-path": "319f741cce68d7914884900c138a1fbb70a42f30",
-            "--speculative-draft-model-path": "dedf8df68adfb1afeaf7b7480c0a0243108177b4",
+            "model_path": "319f741cce68d7914884900c138a1fbb70a42f30",
+            "speculative_draft_model_path": "dedf8df68adfb1afeaf7b7480c0a0243108177b4",
         }
-        for path_flag, revision in expected_revisions.items():
-            if not parsed_args.get(path_flag, "").endswith("/snapshots/" + revision):
-                errors.append(f"server argument {path_flag} differs from locked snapshot")
-        if "--mamba-full-memory-ratio" in parsed_args:
-            errors.append("initial C2/C3 profiles must omit --mamba-full-memory-ratio")
-        if "--disable-cuda-graph" in parsed_args:
-            errors.append("initial C2/C3 profiles must not disable CUDA graphs")
+        for path_field, revision in expected_revisions.items():
+            if not args.get(path_field, "").endswith("/snapshots/" + revision):
+                errors.append(f"observed server field {path_field} differs from locked snapshot")
+    provenance = server.get("launch_provenance")
+    if not isinstance(provenance, dict) or provenance.get("source") != "docker_inspect":
+        errors.append("independent docker launch provenance is missing")
+    else:
+        if provenance.get("image_digest") != EXPECTED_IDENTITIES["image_digest"]:
+            errors.append("launch provenance image differs from evidence-overlay lock")
+        if provenance.get("source_revision") != EXPECTED_IDENTITIES["source_revision"]:
+            errors.append("launch provenance source revision differs from lock")
+        command_flags, command_errors = _command_flags(provenance.get("container_command"))
+        errors.extend(command_errors)
+        if "sglang.launch_server" not in provenance.get("container_command", []):
+            errors.append("launch provenance is not the SGLang server command")
+        if provenance.get("container_name") != "qwen3.8-27b-sglang":
+            errors.append("launch provenance does not name the production service")
+        launch_fields = {
+            "--model-path": "model_path", "--speculative-draft-model-path": "speculative_draft_model_path",
+            "--context-length": "context_length", "--tp-size": "tp_size",
+            "--kv-cache-dtype": "kv_cache_dtype", "--attention-backend": "attention_backend",
+            "--chunked-prefill-size": "chunked_prefill_size", "--mamba-ssm-dtype": "mamba_ssm_dtype",
+            "--mem-fraction-static": "mem_fraction_static",
+            "--mamba-radix-cache-strategy": "mamba_radix_cache_strategy",
+            "--speculative-algorithm": "speculative_algorithm",
+            "--speculative-num-draft-tokens": "speculative_num_draft_tokens",
+            "--max-running-requests": "max_running_requests",
+            "--max-mamba-cache-size": "max_mamba_cache_size",
+        }
+        for flag, field in launch_fields.items():
+            expected = args.get(field) if isinstance(args, dict) else None
+            if expected is None or command_flags.get(flag) != str(expected):
+                errors.append(f"launch argument {flag} differs from observed server field {field}")
+        if "--mamba-full-memory-ratio" in command_flags:
+            errors.append("initial C2/C3 launch must omit --mamba-full-memory-ratio")
+        if "--disable-cuda-graph" in command_flags:
+            errors.append("initial C2/C3 launch must not disable CUDA graphs")
+        if not isinstance(provenance.get("artifact_reference"), str) or _placeholder(provenance.get("artifact_reference")):
+            errors.append("launch provenance artifact reference is missing")
     capacity = server.get("resolved_capacity")
     if (not isinstance(capacity, dict) or type(capacity.get("max_running_requests")) is not int
             or capacity["max_running_requests"] <= 0 or _placeholder(capacity)):
@@ -367,14 +398,23 @@ def _validate_server(raw: dict[str, Any]) -> list[str]:
             errors.append("resolved concurrency does not match C2/C3 profile")
         if capacity.get("context_length") != 262144:
             errors.append("resolved native context must be 262144")
-        if capacity.get("max_output_tokens") != 131072:
-            errors.append("resolved campaign maximum output must be 131072")
         if capacity.get("tp_size") != 1:
             errors.append("resolved tensor parallel size must be 1")
         if profile_runtime and capacity.get("max_mamba_cache_size") != profile_runtime["max_mamba_cache_size"]:
             errors.append("resolved Mamba cache size does not match C2/C3 profile")
-        if profile_runtime and capacity.get("planned_port") != profile_runtime["planned_port"]:
-            errors.append("resolved planned port does not match C2/C3 profile")
+    limits = server.get("campaign_request_limits")
+    if not isinstance(limits, dict) or limits.get("max_output_tokens") != 131072:
+        errors.append("campaign_request_limits.max_output_tokens must be 131072 metadata")
+    launch = server.get("launch_metadata")
+    if not isinstance(launch, dict):
+        errors.append("launch_metadata is missing")
+    else:
+        profile_runtime = PROFILE_RUNTIME.get(raw.get("profile"))
+        if profile_runtime and launch.get("planned_port") != profile_runtime["planned_port"]:
+            errors.append("launch planned_port does not match C2/C3 profile")
+        observed = launch.get("observed_endpoint")
+        if not isinstance(observed, str) or not observed.startswith(("http://", "https://")):
+            errors.append("launch observed_endpoint is missing")
     expected_slots = PROFILE_RUNTIME.get(raw.get("profile"), {}).get("max_mamba_cache_size", -1)
     errors.extend(_validate_memory_pools(server.get("memory_pools"), expected_slots))
     concurrency = PROFILE_RUNTIME.get(raw.get("profile"), {}).get("max_running_requests", -1)

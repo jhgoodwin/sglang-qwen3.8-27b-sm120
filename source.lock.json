@@ -89,8 +89,8 @@
         "BASE_HAS_NOAVX": "1"
       },
       "temporary_build_alias_status": "removed_after_build",
-      "overlay_image": "qwen38-c2c3-evidence@sha256:cb7a56b3cc39872f43732a58e5adc13361bb24a53d1425ab878d2829a90ac6d0",
-      "image_digest": "sha256:cb7a56b3cc39872f43732a58e5adc13361bb24a53d1425ab878d2829a90ac6d0",
+      "overlay_image": "qwen38-c2c3-evidence@sha256:a63bbe5a4a65a7d54de1329333825f38eac6a79f40efb86c497cf8f78ace5967",
+      "image_digest": "sha256:a63bbe5a4a65a7d54de1329333825f38eac6a79f40efb86c497cf8f78ace5967",
       "sglang_revision": "5f55db35e926d50676f75b812640ea2410b0fe0e",
       "overlay_patches": [
         "patches/sglang/0001-noavx-disable-nixl-ep-import.patch",
@@ -100,7 +100,12 @@
         "patches/sglang/0001-noavx-disable-nixl-ep-import.patch": "inherited_from_parent_overlay_and_verified_before_skip",
         "patches/sglang/0002-c2c3-server-evidence.patch": "applied_by_this_overlay_build"
       },
-      "status": "built_no_gpu_import_verified"
+      "verification": {
+        "source_revision_label": "5f55db35e926d50676f75b812640ea2410b0fe0e",
+        "evidence_label": "opt in with SGLANG_C2C3_EVIDENCE_PATH",
+        "no_gpu_import": "runtime_evidence NullRecorder"
+      },
+      "status": "rebuilt_runtime_bridge_no_gpu_import_verified"
     }
   },
   "updated": "2026-08-24"

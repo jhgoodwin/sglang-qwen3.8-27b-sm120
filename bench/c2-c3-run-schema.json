@@ -65,22 +65,27 @@
     },
     "server": {
       "type": "object",
-      "required": ["identities", "server_args", "resolved_capacity", "memory_pools", "cuda_graphs", "process"],
+      "required": ["identities", "observed_server_args", "resolved_capacity", "campaign_request_limits", "launch_metadata", "launch_provenance", "memory_pools", "cuda_graphs", "process"],
       "properties": {
         "identities": {"type": "object"},
-        "server_args": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "observed_server_args": {
+          "type": "object",
+          "required": ["model_path", "speculative_draft_model_path", "context_length", "tp_size", "kv_cache_dtype", "attention_backend", "chunked_prefill_size", "mamba_ssm_dtype", "mem_fraction_static", "mamba_radix_cache_strategy", "speculative_algorithm", "speculative_num_draft_tokens", "max_running_requests", "max_mamba_cache_size"]
+        },
         "resolved_capacity": {
           "type": "object",
-          "required": ["max_running_requests", "context_length", "max_output_tokens", "tp_size", "max_mamba_cache_size", "planned_port"],
+          "required": ["max_running_requests", "context_length", "max_total_num_tokens", "tp_size", "max_mamba_cache_size"],
           "properties": {
             "max_running_requests": {"enum": [2, 3]},
             "context_length": {"const": 262144},
-            "max_output_tokens": {"const": 131072},
+            "max_total_num_tokens": {"type": "integer", "minimum": 1},
             "tp_size": {"const": 1},
-            "max_mamba_cache_size": {"enum": [8, 12]},
-            "planned_port": {"enum": [11447, 11448]}
+            "max_mamba_cache_size": {"enum": [8, 12]}
           }
         },
+        "campaign_request_limits": {"type": "object", "required": ["max_output_tokens"], "properties": {"max_output_tokens": {"const": 131072}}},
+        "launch_metadata": {"type": "object", "required": ["planned_port", "observed_endpoint"], "properties": {"planned_port": {"enum": [11447, 11448]}, "observed_endpoint": {"type": "string", "minLength": 1}}},
+        "launch_provenance": {"type": "object", "required": ["source", "artifact_reference", "image_digest", "source_revision", "container_command"], "properties": {"source": {"const": "docker_inspect"}, "container_command": {"type": "array", "minItems": 1, "items": {"type": "string"}}}},
         "memory_pools": {
           "type": "object",
           "required": ["source", "kv_cache", "mamba_state_cache", "dflash_intermediate"],
