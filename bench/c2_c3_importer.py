@@ -13,7 +13,15 @@ import json
 import math
 import pathlib
 import re
+import sys
 from typing import Any
+
+# When invoked as ``python3 bench/c2_c3_importer.py``, Python puts ``bench/``
+# on sys.path rather than the repository root.  Keep the package import
+# explicit and make the documented file-path entrypoint work as well as
+# ``python3 -m bench.c2_c3_importer``.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from bench.c2_c3_runner import SCHEMA as RAW_SCHEMA
 
