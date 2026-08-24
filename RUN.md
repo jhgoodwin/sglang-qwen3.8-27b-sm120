@@ -1,16 +1,27 @@
 # Run
 
-Resolve the local snapshot and set `MODEL_DIR` (default
-`/data/models/Qwen3.8-27B`) and `HF_CACHE_HUB` (default `/data/models`). Both
-are mounted read-only. Replace the unresolved immutable `IMAGE` with a
-verified `registry/name:tag@sha256:<64 hex>` and record it in
-`source.lock.json`. Run `./scripts/validate-scaffold.sh`, then
-`PROFILE=tp1-bf16-safe ./serve.sh`.
+For this workstation, the qualified production service is the default. Start
+it with:
+
+```sh
+./serve.sh
+```
+
+With no overrides, this selects the measured C2 NVFP4+DFlash2 profile on GPU 0,
+the pinned local target and draft snapshots under `/data/models`, the immutable
+qualified image, native context 262,144, two running requests, and port 11436.
+Inputs are mounted read-only. Evidence instrumentation is disabled for normal
+service, so no `EVIDENCE_DIR` or special request header is needed.
+
+`PROFILE`, `MODEL_DIR`, `DRAFT_MODEL_DIR`, `IMAGE`, `GPU_LIST`, `PORT`, and the
+other launcher variables remain available for experiments or moving the repo
+to another machine. `PROFILE=c2` retains the instrumented campaign launcher
+on port 11447 and still requires `EVIDENCE_DIR`.
 
 The default host endpoint is `127.0.0.1:11436` and maps to container port
 8000. SGLang listens on `0.0.0.0` only inside the container so Docker port
 publishing works; the host-side publish remains restricted to loopback.
-The TP1 and TP2 production profiles use the stable Docker container name
+The default and legacy TP1/TP2 production profiles use the stable Docker container name
 `qwen3.8-27b-sglang`. Docker accepts periods in container names. Candidate,
 safe, and replica profiles retain profile-specific names for experiment
 isolation; `CONTAINER_NAME` remains an explicit override.

@@ -8,10 +8,11 @@ root = pathlib.Path(sys.argv[1])
 for name in ("release.json", "source.lock.json", "stack.lock.json", "cache-schema.json", "profiles.json"):
     json.loads((root / name).read_text())
 release = json.loads((root / "release.json").read_text())
-assert release["model"] == "Qwen/Qwen3.8-27B"
+assert release["model"] == "RadixArk/Qwen3.8-27B-NVFP4"
+assert release["default_profile"] == "production"
 assert re.fullmatch(r"v[1-9][0-9]*", release["cache_schema"])
 profiles = json.loads((root / "profiles.json").read_text())["profiles"]
-for name in ("tp1-bf16-safe", "tp1-bf16-production", "tp2-bf16-safe", "tp2-bf16-production", "replica0", "replica1", "tp1-bf16-dspark-candidate", "tp2-bf16-dspark-candidate", "tp1-bf16-eagle-candidate", "tp2-bf16-eagle-candidate", "tp1-bf16-dflash-candidate"):
+for name in ("production", "tp1-bf16-safe", "tp1-bf16-production", "tp2-bf16-safe", "tp2-bf16-production", "replica0", "replica1", "tp1-bf16-dspark-candidate", "tp2-bf16-dspark-candidate", "tp1-bf16-eagle-candidate", "tp2-bf16-eagle-candidate", "tp1-bf16-dflash-candidate"):
     assert name in profiles
 assert "--speculative-algorithm" not in json.dumps(profiles["tp1-bf16-safe"])
 for name in ("tp1-bf16-dspark-candidate", "tp2-bf16-dspark-candidate"):
@@ -54,6 +55,7 @@ for name, (port, strategy, ratio, speculative) in current.items():
 assert json.loads((root / "source.lock.json").read_text())["runtime_variants"]["current-cookbook-qwen38-27b"]["recipe_main_revision"] == "d1af3c89233c475fc1bf11939d86787e6cddd58c"
 assert "127.0.0.1" in (root / "RUN.md").read_text()
 expected_defaults = {
+    "production": ("0", 11436, "qwen3.8-27b-sglang"),
     "tp1-bf16-safe": ("0", 11436, "sglang-qwen38-27b-tp1-bf16-safe"),
     "tp1-bf16-production": ("0", 11436, "qwen3.8-27b-sglang"),
     "tp2-bf16-safe": ("0,1", 11436, "sglang-qwen38-27b-tp2-bf16-safe"),
@@ -77,6 +79,14 @@ for name, (gpus, port, container_name) in expected_defaults.items():
     assert resolved["port"] == port
     assert resolved["container_name"] == container_name
 serve = (root / "serve.sh").read_text()
+production = resolve("production")
+assert production["status"] == "qualified_native_context_c2"
+assert production["default"] is True and production["evidence"] is False
+assert "--max-running-requests" in production["extra_args"]
+assert production["extra_args"][production["extra_args"].index("--max-running-requests") + 1] == "2"
+assert production["extra_args"][production["extra_args"].index("--max-mamba-cache-size") + 1] == "8"
+assert "profile=${PROFILE:-production}" in serve
+assert "[[ \"$profile\" == production ]] && cache_profile=c2" in serve
 assert "replica1" in serve
 assert "container_port" in serve and "--port" in serve
 assert "DRAFT_MODEL_DIR is required" in serve

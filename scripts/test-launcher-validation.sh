@@ -8,6 +8,26 @@ printf '%s\n' '#!/bin/sh' 'printf "GPU 0\\nGPU 1\\n"' > "$tmp/bin/nvidia-smi"
 printf '%s\n' '#!/bin/sh' 'printf "%s\\n" "$*" > "$CAPTURE"' 'printf "%s\\n" "$@" >> "$CAPTURE"' > "$tmp/bin/docker"
 chmod +x "$tmp/bin/nvidia-smi" "$tmp/bin/docker"
 valid="registry.example/qwen:tested@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+qualified_image='qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb'
+
+# No PROFILE or IMAGE is the qualified production easy button. Model paths are
+# overridden only to keep this launcher test independent of the host filesystem;
+# a static check below locks the workstation's exact snapshot defaults.
+CAPTURE="$tmp/production-default.args" env PATH="$tmp/bin:$PATH" MODEL_DIR="$tmp/model" \
+  DRAFT_MODEL_DIR="$tmp/draft" HF_CACHE_HUB="$tmp/hf" CACHE_DIR="$tmp/cache-production-default" \
+  CAPTURE="$tmp/production-default.args" "$repo/serve.sh"
+grep -Fq -- '--name qwen3.8-27b-sglang' "$tmp/production-default.args"
+grep -Fq -- '-p 127.0.0.1:11436:8000' "$tmp/production-default.args"
+grep -Fq -- "$qualified_image" "$tmp/production-default.args"
+grep -Fq -- '--max-running-requests 2' "$tmp/production-default.args"
+grep -Fq -- '--max-mamba-cache-size 8' "$tmp/production-default.args"
+grep -Fq -- '--speculative-algorithm DFLASH' "$tmp/production-default.args"
+grep -Fq -- '--speculative-num-draft-tokens 8' "$tmp/production-default.args"
+grep -Fq -- "-v $tmp/draft:/models/Qwen3.8-27B-DFlash2:ro" "$tmp/production-default.args"
+! grep -Fq -- '--pid=host' "$tmp/production-default.args"
+! grep -Fq -- 'SGLANG_C2C3_EVIDENCE_PATH' "$tmp/production-default.args"
+! grep -Fq -- '--mamba-full-memory-ratio' "$tmp/production-default.args"
+echo "qualified production zero-profile defaults passed"
 
 run_profile() {
   local profile=$1 expected_gpu=$2 expected_port=$3 expected_name=$4 expected_tp=$5
@@ -229,7 +249,7 @@ chmod +x "$tmp/bin/ss"
 
 # Queued C2/C3 profiles use the pinned evidence overlay and reserve an
 # operator-owned JSONL target without changing the existing profile contract.
-c2_image='qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb'
+c2_image=$qualified_image
 run_c2c3() {
   local profile=$1 port=$2 max_running=$3 mamba_size=$4
   local evidence="$tmp/evidence-$profile"
@@ -292,6 +312,9 @@ python3 - "$repo/serve.sh" <<'PY'
 import sys
 text = open(sys.argv[1]).read()
 assert text.index("model_dir=/data/models/models--RadixArk--Qwen3.8-27B-NVFP4") < text.index("model_mount_src=$model_dir")
+assert "profile=${PROFILE:-production}" in text
+assert "/data/models/models--RadixArk--Qwen3.8-27B-NVFP4/snapshots/319f741cce68d7914884900c138a1fbb70a42f30" in text
+assert "/data/models/models--incoai--Qwen3.8-27B-DFlash2/snapshots/dedf8df68adfb1afeaf7b7480c0a0243108177b4" in text
 assert "docker ps -a --filter" in text
 assert 'evidence_file="${profile}-' in text
 print("C2/C3 default mount ordering and all-container collision guards passed")

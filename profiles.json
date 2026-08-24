@@ -69,6 +69,16 @@
       "mamba_cache_strategy": "extra_buffer_lazy", "mamba_cache_size": 4, "mamba_full_memory_ratio": 6.12,
       "extra_args": ["--attention-backend", "flashinfer", "--chunked-prefill-size", "2048", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3_coder", "--mamba-ssm-dtype", "float32", "--mem-fraction-static", "0.85", "--mamba-radix-cache-strategy", "extra_buffer_lazy", "--mamba-full-memory-ratio", "6.12", "--max-running-requests", "1", "--speculative-algorithm", "DFLASH", "--speculative-draft-model-path", "/models/Qwen3.8-27B-DFlash2", "--speculative-num-draft-tokens", "8"]
     },
+    "production": {
+      "alias": "c2",
+      "status": "qualified_native_context_c2",
+      "default": true,
+      "port": 11436,
+      "container_name": "qwen3.8-27b-sglang",
+      "evidence": false,
+      "model_dir_default": "/data/models/models--RadixArk--Qwen3.8-27B-NVFP4/snapshots/319f741cce68d7914884900c138a1fbb70a42f30",
+      "draft_model_dir_default": "/data/models/models--incoai--Qwen3.8-27B-DFlash2/snapshots/dedf8df68adfb1afeaf7b7480c0a0243108177b4"
+    },
     "c2": {
       "status": "queued_campaign_profile",
       "tp": 1,

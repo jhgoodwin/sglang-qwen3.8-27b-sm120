@@ -1,11 +1,18 @@
 {
   "schema": 1,
   "product": "sglang-qwen3.8-27b-sm120",
-  "model": "Qwen/Qwen3.8-27B",
+  "model": "RadixArk/Qwen3.8-27B-NVFP4",
+  "model_revision": "319f741cce68d7914884900c138a1fbb70a42f30",
+  "draft_model": "incoai/Qwen3.8-27B-DFlash2",
+  "draft_model_revision": "dedf8df68adfb1afeaf7b7480c0a0243108177b4",
+  "default_profile": "production",
+  "default_endpoint": "http://127.0.0.1:11436",
   "cache_schema": "v1",
   "image": {
-    "reference": "sglang-qwen38-27b-sm120@sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d",
+    "reference": "qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb",
+    "parent_reference": "sglang-qwen38-27b-sm120@sha256:d3346cea82545d982b7ec169f1f0f6f47834b0c4a70ec693e954a8d66111cb8d",
     "base_reference": "lmsysorg/sglang@sha256:616a3e97f45191af975896cfa644279096cb31bd408a071c2e99ca7209c3cafe",
-    "status": "verified_noavx_overlay"
+    "source_revision": "5f55db35e926d50676f75b812640ea2410b0fe0e",
+    "status": "qualified_native_context_c2"
   }
 }

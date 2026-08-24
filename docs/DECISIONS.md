@@ -298,3 +298,20 @@
 - Limitation: this is a capacity, memory, throughput, and queue-policy
   decision. It does not close long-context quality, mixed-load starvation,
   soak, vision, C4, or two-GPU qualification gates.
+
+## Qualified C2 production easy button (2026-08-24)
+
+- Scope: make the measured workstation configuration runnable without
+  reconstructing benchmark environment variables.
+- Decision: bare `./serve.sh` selects a `production` profile with the qualified
+  C2 NVFP4+DFlash2 arguments, pinned local target/draft snapshots, immutable
+  evidence-overlay image, GPU 0, native context 262,144, and loopback port
+  11436. Environment variables remain explicit overrides.
+- Decision: production leaves `SGLANG_C2C3_EVIDENCE_PATH` unset and does not use
+  the host PID namespace. The overlay's disabled evidence path is a tested
+  no-op, so ordinary OpenAI clients do not need the campaign-only
+  `X-Request-ID` header. Instrumented `PROFILE=c2` remains separate on port
+  11447 and requires `EVIDENCE_DIR`.
+- Decision: production reuses the image/source-specific C2 compilation cache;
+  changing `IMAGE`, `SOURCE_REVISION`, or `CACHE_DIR` still selects an isolated
+  cache as before.

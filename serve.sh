@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-profile=${PROFILE:-tp1-bf16-safe}
+profile=${PROFILE:-production}
 model_dir=${MODEL_DIR:-/data/models/Qwen3.8-27B}
 model_dir_env=${MODEL_DIR:-}
 hf_cache=${HF_CACHE_HUB:-/data/models}
@@ -15,19 +15,25 @@ port=${PORT:-}
 container_port=${CONTAINER_PORT:-8000}
 name=${CONTAINER_NAME:-}
 cache_dir=${CACHE_DIR:-}
-source_revision=${SOURCE_REVISION:-unresolved}
+source_revision=${SOURCE_REVISION:-}
 draft_model_dir=${DRAFT_MODEL_DIR:-}
 draft_model_dir_env=${DRAFT_MODEL_DIR:-}
-if [[ ( "$profile" == c2 || "$profile" == c3 ) && -z "$model_dir_env" ]]; then
+if [[ ( "$profile" == production || "$profile" == c2 || "$profile" == c3 ) && -z "$model_dir_env" ]]; then
   model_dir=/data/models/models--RadixArk--Qwen3.8-27B-NVFP4/snapshots/319f741cce68d7914884900c138a1fbb70a42f30
 fi
-if [[ ( "$profile" == c2 || "$profile" == c3 ) && -z "$draft_model_dir_env" ]]; then
+if [[ ( "$profile" == production || "$profile" == c2 || "$profile" == c3 ) && -z "$draft_model_dir_env" ]]; then
   draft_model_dir=/data/models/models--incoai--Qwen3.8-27B-DFlash2/snapshots/dedf8df68adfb1afeaf7b7480c0a0243108177b4
+fi
+if [[ -z "$source_revision" ]]; then
+  case "$profile" in
+    production|c2|c3) source_revision=5f55db35e926d50676f75b812640ea2410b0fe0e ;;
+    *) source_revision=unresolved ;;
+  esac
 fi
 draft_model_mount_src=$draft_model_dir
 draft_model_mount_name=Qwen3.8-27B-DSpark
 case "$profile" in
-  tp1-bf16-dflash-candidate|tp1-nvfp4-dflash-cookbook-default|tp1-nvfp4-dflash-cookbook-lazy|c2|c3) draft_model_mount_name=Qwen3.8-27B-DFlash2 ;;
+  tp1-bf16-dflash-candidate|tp1-nvfp4-dflash-cookbook-default|tp1-nvfp4-dflash-cookbook-lazy|production|c2|c3) draft_model_mount_name=Qwen3.8-27B-DFlash2 ;;
 esac
 draft_model_mount_target=/models/$draft_model_mount_name
 draft_model_container_path=$draft_model_mount_target
@@ -70,6 +76,7 @@ case "$profile" in
   tp1-nvfp4-cookbook-no-spec) default_tp=1; default_gpus=0; default_port=11444; default_name=sglang-qwen38-27b-tp1-nvfp4-cookbook-no-spec ;;
   tp1-nvfp4-dflash-cookbook-default) default_tp=1; default_gpus=0; default_port=11445; default_name=sglang-qwen38-27b-tp1-nvfp4-dflash-cookbook-default ;;
   tp1-nvfp4-dflash-cookbook-lazy) default_tp=1; default_gpus=0; default_port=11446; default_name=sglang-qwen38-27b-tp1-nvfp4-dflash-cookbook-lazy ;;
+  production) default_tp=1; default_gpus=0; default_port=11436; default_name=qwen3.8-27b-sglang; profile_image=qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb ;;
   c2) default_tp=1; default_gpus=0; default_port=11447; default_name=qwen3.8-27b-sglang; profile_image=qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb ;;
   c3) default_tp=1; default_gpus=0; default_port=11448; default_name=qwen3.8-27b-sglang; profile_image=qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb ;;
   tp1-bf16-eagle-candidate) default_tp=1; default_gpus=0; default_port=11440; default_name=sglang-qwen38-27b-tp1-bf16-eagle-candidate ;;
@@ -81,7 +88,7 @@ if [[ -z "$image_env" && -n "${profile_image:-}" ]]; then image=$profile_image; 
 port=${port:-$default_port}; name=${name:-$default_name}
 [[ "$port" =~ ^[0-9]+$ && "$port" -ge 1 && "$port" -le 65535 ]] || die "invalid PORT: $port"
 case "$profile" in
-  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate|tp1-nvfp4-dflash-cookbook-default|tp1-nvfp4-dflash-cookbook-lazy|c2|c3)
+  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate|tp1-nvfp4-dflash-cookbook-default|tp1-nvfp4-dflash-cookbook-lazy|production|c2|c3)
     [[ -n "$draft_model_dir" ]] || die "DRAFT_MODEL_DIR is required for $profile (use an existing local draft snapshot; no download is performed)"
     [[ -d "$draft_model_dir" ]] || die "draft model path does not exist: $draft_model_dir (set DRAFT_MODEL_DIR; input is mounted read-only)"
     ;;
@@ -99,12 +106,17 @@ for gpu in "${gpu_array[@]}"; do [[ "$gpu" -lt "$gpu_total" ]] || die "GPU_LIST 
 if command -v ss >/dev/null 2>&1 && ss -H -ltn "sport = :$port" | grep -q .; then
   die "host port $port is already listening; stop the existing service or choose PORT explicitly (no automatic replacement)"
 fi
-if [[ "$profile" == c2 || "$profile" == c3 ]]; then
+if [[ "$profile" == production || "$profile" == c2 || "$profile" == c3 ]]; then
   if docker ps -a --filter "name=^${name}$" --format '{{.Names}}' 2>/dev/null | grep -Fxq "$name"; then
     die "container name $name is already in use; stop the existing service or choose CONTAINER_NAME explicitly (no automatic replacement)"
   fi
 fi
-if [[ -z "$cache_dir" ]]; then digest=${image##*@sha256:}; cache_dir="/data/models/sglang-qwen38-27b-cache-v1-${digest:0:12}-${source_revision:0:12}-${profile}"; fi
+if [[ -z "$cache_dir" ]]; then
+  digest=${image##*@sha256:}
+  cache_profile=$profile
+  [[ "$profile" == production ]] && cache_profile=c2
+  cache_dir="/data/models/sglang-qwen38-27b-cache-v1-${digest:0:12}-${source_revision:0:12}-${cache_profile}"
+fi
 mkdir -p "$cache_dir"
 
 mamba_strategy=extra_buffer_lazy
@@ -149,7 +161,7 @@ case "$profile" in
       --speculative-draft-model-path "$draft_model_container_path"
       --speculative-num-draft-tokens 8)
     ;;
-  c2)
+  production|c2)
     extra+=(--mem-fraction-static 0.85 --max-running-requests 2 --max-mamba-cache-size 8 --speculative-algorithm DFLASH
       --speculative-draft-model-path "$draft_model_container_path"
       --speculative-num-draft-tokens 8)
@@ -175,7 +187,7 @@ command -v docker >/dev/null 2>&1 || die "docker is required to launch"
 mounts=(-v "$model_mount_src:$model_mount_target:ro" -v "$hf_cache:/hf-cache:ro"
   -v "$cache_dir/torch:/cache/torch" -v "$cache_dir/triton:/cache/triton" -v "$cache_dir/flashinfer:/cache/flashinfer")
 case "$profile" in
-  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate|tp1-nvfp4-dflash-cookbook-default|tp1-nvfp4-dflash-cookbook-lazy|c2|c3) mounts+=( -v "$draft_model_mount_src:$draft_model_mount_target:ro" ) ;;
+  tp1-bf16-dspark-candidate|tp2-bf16-dspark-candidate|tp1-nvfp4-dspark-candidate|tp1-bf16-dflash-candidate|tp1-nvfp4-dflash-cookbook-default|tp1-nvfp4-dflash-cookbook-lazy|production|c2|c3) mounts+=( -v "$draft_model_mount_src:$draft_model_mount_target:ro" ) ;;
 esac
 evidence_mount=()
 evidence_env=()
