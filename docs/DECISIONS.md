@@ -315,3 +315,19 @@
 - Decision: production reuses the image/source-specific C2 compilation cache;
   changing `IMAGE`, `SOURCE_REVISION`, or `CACHE_DIR` still selects an isolated
   cache as before.
+
+## Production K/V cache precision without checkpoint scales (2026-08-24)
+
+- Scope: remove the startup warning and accuracy risk for the bare production
+  launcher when serving the pinned checkpoint, which has no baked K/V scaling
+  factors and has no compatible external calibration artifact.
+- Decision: `PROFILE=production` adds the pinned runtime's supported
+  `--kv-cache-dtype bf16` argument. `c2`, `c3`, and all experimental or
+  historical profiles retain their existing FP8 K/V arguments and contracts.
+- Reason: the pinned SGLang `ServerArgs` accepts `bf16`/`bfloat16` as full-
+  precision K/V modes; using BF16 avoids the unit-scale FP8 fallback. This is
+  an explicit production capacity tradeoff, not a claim that FP8 quality has
+  been calibrated.
+- Consequence: production K/V capacity is lower than FP8 and must be measured
+  again for any future capacity or throughput claim; C2/C3 evidence remains
+  intentionally comparable under their locked FP8 contract.

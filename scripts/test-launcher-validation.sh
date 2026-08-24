@@ -32,6 +32,8 @@ grep -Fq -- 'sglang serve' "$tmp/production-default.args"
 ! grep -Fq -- '--pid=host' "$tmp/production-default.args"
 ! grep -Fq -- 'SGLANG_C2C3_EVIDENCE_PATH' "$tmp/production-default.args"
 ! grep -Fq -- '--mamba-full-memory-ratio' "$tmp/production-default.args"
+grep -Fq -- '--kv-cache-dtype bf16' "$tmp/production-default.args"
+[[ "$(grep -o -- '--kv-cache-dtype ' "$tmp/production-default.args" | wc -l)" -eq 1 ]]
 echo "qualified production zero-profile defaults passed"
 
 run_profile() {
