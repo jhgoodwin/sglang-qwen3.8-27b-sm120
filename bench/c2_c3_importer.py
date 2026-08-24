@@ -175,7 +175,8 @@ def _usage_counts(request: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     usage = request.get("usage")
     if not isinstance(usage, dict):
         return {"prompt_tokens": None, "completion_tokens": None,
-                "reasoning_tokens": None, "visible_tokens": None}, ["missing final server usage"]
+                "reasoning_tokens": None, "emitted_reasoning_tokens": None,
+                "visible_tokens": None}, ["missing final server usage"]
     prompt = usage.get("prompt_tokens")
     completion = usage.get("completion_tokens")
     details = usage.get("completion_tokens_details", {})
@@ -188,11 +189,41 @@ def _usage_counts(request: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                         ("reasoning_tokens", reasoning)):
         if type(value) is not int or value < 0:
             errors.append(f"invalid server usage {name}")
-    visible = completion - reasoning if type(completion) is int and type(reasoning) is int else None
-    if type(visible) is int and visible < 0:
-        errors.append("reasoning tokens exceed completion tokens")
+    # SGLang's usage reasoning_tokens is a re-tokenization of the rendered
+    # reasoning text.  It is not necessarily a subset of generated model-token
+    # IDs and can therefore exceed completion_tokens.  Classify the instrumented
+    # emitted IDs by their SSE delta channel instead of subtracting unlike units.
+    visible = emitted_reasoning = 0
+    for event in request.get("events", []):
+        parsed = event.get("parsed") if isinstance(event, dict) else None
+        if not isinstance(parsed, dict):
+            continue
+        ids = parsed.get("token_ids")
+        if not isinstance(ids, list) or not ids:
+            continue
+        content = reasoning_content = ""
+        choices = parsed.get("choices", [])
+        if isinstance(choices, list):
+            for choice in choices:
+                delta = choice.get("delta", {}) if isinstance(choice, dict) else {}
+                if isinstance(delta, dict):
+                    content += delta.get("content", "") if isinstance(delta.get("content", ""), str) else ""
+                    reasoning_content += (delta.get("reasoning_content", "")
+                                          if isinstance(delta.get("reasoning_content", ""), str) else "")
+        if content and reasoning_content:
+            errors.append("cannot classify emitted tokens from mixed content/reasoning delta")
+        elif content:
+            visible += len(ids)
+        elif reasoning_content:
+            emitted_reasoning += len(ids)
+    if type(completion) is int and visible + emitted_reasoning != completion:
+        errors.append("emitted content/reasoning token count differs from completion usage")
     return {"prompt_tokens": prompt, "completion_tokens": completion,
-            "reasoning_tokens": reasoning, "visible_tokens": visible}, errors
+            "reasoning_tokens": reasoning,
+            "reasoning_tokens_basis": "server_usage_rendered_text_tokenization",
+            "emitted_reasoning_tokens": emitted_reasoning,
+            "visible_tokens": visible,
+            "visible_tokens_basis": "server_token_ids_classified_by_sse_delta_channel"}, errors
 
 
 def _token_itl(request: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:

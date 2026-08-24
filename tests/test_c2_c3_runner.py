@@ -429,9 +429,37 @@ class CampaignImporterTests(unittest.TestCase):
         for request in raw["requests"]:
             request["usage"]["completion_tokens"] = 2
             request["usage"]["completion_tokens_details"]["reasoning_tokens"] = 1
+            request["events"][0]["parsed"]["choices"][0]["delta"] = {"reasoning_content": "a"}
         imported = importer.validate_and_import(raw)
         self.assertTrue(imported["accepted"], imported["errors"])
         self.assertEqual(imported["requests"][0]["metrics"]["visible_tokens"], 1)
+        self.assertEqual(imported["requests"][0]["metrics"]["emitted_reasoning_tokens"], 1)
+        self.assertEqual(imported["requests"][0]["metrics"]["reasoning_tokens"], 1)
+
+    def test_rendered_reasoning_usage_may_exceed_emitted_completion_tokens(self):
+        raw = raw_run()
+        for request in raw["requests"]:
+            request["usage"].pop("completion_tokens_details")
+            request["usage"]["reasoning_tokens"] = 5
+            for event in request["events"]:
+                event["parsed"]["choices"][0]["delta"] = {"reasoning_content": "expanded text"}
+            request["content"] = ""
+            request["reasoning_content"] = "expanded text expanded text"
+        imported = importer.validate_and_import(raw)
+        self.assertTrue(imported["accepted"], imported["errors"])
+        metrics = imported["requests"][0]["metrics"]
+        self.assertEqual(metrics["completion_tokens"], 2)
+        self.assertEqual(metrics["reasoning_tokens"], 5)
+        self.assertEqual(metrics["emitted_reasoning_tokens"], 2)
+        self.assertEqual(metrics["visible_tokens"], 0)
+
+    def test_stream_channel_counts_fail_closed_on_mixed_or_missing_ids(self):
+        raw = raw_run()
+        raw["requests"][0]["events"][0]["parsed"]["choices"][0]["delta"] = {
+            "content": "a", "reasoning_content": "thought"}
+        imported = importer.validate_and_import(raw)
+        self.assertFalse(imported["accepted"])
+        self.assertTrue(any("cannot classify emitted tokens" in error for error in imported["errors"]))
 
 
 if __name__ == "__main__":

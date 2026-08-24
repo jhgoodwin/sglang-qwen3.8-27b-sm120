@@ -166,6 +166,47 @@ class CampaignDriverTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, field):
                 campaign._require_fresh_lifecycle(state, reused)
 
+    def test_rejected_cell_is_reimported_without_overwriting_or_rerunning(self):
+        class FakeBuilder:
+            def __init__(self, *args, **kwargs): self.calls = []
+            def _messages(self, text): return [{"role": "user", "content": text}]
+            def build(self, target, namespace="default"):
+                text = f"{namespace}-exact-{target}"
+                return text, {"target": target, "observed": target}
+            def prove(self, text, target): return {"target": target, "observed": target}
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            evidence = root / "server.json"; scheduler = root / "scheduler.jsonl"
+            scheduler.write_text("{}\n")
+            evidence.write_text(json.dumps({"observed_server_args": {"model_path": "/model"},
+                "launch_provenance": {"container_id": "container-1",
+                                      "artifact_reference": str(root / "launch.json")}}))
+            argv = ["run", "--profile", "c2", "--artifact-root", str(root / "artifacts"),
+                    "--server-evidence", str(evidence), "--scheduler-events", str(scheduler)]
+            raw = {"gpu_telemetry": [{"free_vram_bytes": 10, "total_vram_bytes": 100}]}
+            imports = [{"accepted": False, "errors": ["first rejection"]}, {"accepted": True}]
+            with patch.object(campaign, "ExactPromptBuilder", FakeBuilder), \
+                 patch.object(campaign, "short_warmup", return_value="warmup"), \
+                 patch.object(campaign, "_scheduler_has_request", return_value=True), \
+                 patch.object(campaign, "preflight_free_vram_gate", return_value=.10), \
+                 patch.object(campaign.c2_c3_runner, "bootstrap_server_pid",
+                              return_value=(7, "pid:7:start_ticks:11")), \
+                 patch.object(campaign.c2_c3_runner, "run_concurrent", return_value=raw) as run, \
+                 patch.object(campaign.c2_c3_importer, "validate_and_import", side_effect=imports):
+                with self.assertRaisesRegex(SystemExit, "importer rejected"):
+                    campaign.main(argv)
+                first = root / "artifacts/raw/c2-A-boot-admission-r1.json"
+                first_contents = first.read_text()
+                self.assertEqual(campaign.main(argv), campaign.RESTART_EXIT)
+            retry = root / "artifacts/reimports/c2-A-boot-admission-r1-attempt2-reimport.json"
+            self.assertTrue(retry.is_file())
+            self.assertEqual(first.read_text(), first_contents)
+            self.assertEqual(run.call_count, 1, "a corrected importer must not repeat completed GPU work")
+            state = json.loads((root / "artifacts/state.json").read_text())
+            self.assertEqual(state["accepted"]["A-boot-admission/r1"], str(retry))
+            self.assertFalse((root / "artifacts/raw/c2-A-boot-admission-r1-attempt2.json").exists())
+
     def test_preflight_vram_gate_parses_and_rejects(self):
         completed = type("Completed", (), {"stdout": "6000, 100000\n"})()
         with patch.object(campaign.subprocess, "run", return_value=completed):

@@ -335,6 +335,42 @@ def _next_cell(state: dict[str, Any]) -> tuple[str, int] | None:
     return None
 
 
+def _attempt_number(state: dict[str, Any], key: str) -> int:
+    """Return an append-only attempt number for an unaccepted cell."""
+    return 1 + sum(1 for failure in state.get("failures", [])
+                   if isinstance(failure, dict) and failure.get("key") == key)
+
+
+def _attempt_name(base: str, attempt: int) -> str:
+    if type(attempt) is not int or attempt <= 0:
+        raise ValueError("attempt must be positive")
+    return base if attempt == 1 else f"{base}-attempt{attempt}"
+
+
+def _accepted_reimport(state: dict[str, Any], key: str) -> tuple[pathlib.Path, dict[str, Any], dict[str, Any]] | None:
+    """Revalidate a preserved raw run before issuing any duplicate GPU work."""
+    for failure in reversed(state.get("failures", [])):
+        if not isinstance(failure, dict) or failure.get("key") != key:
+            continue
+        artifact = failure.get("artifact")
+        if not isinstance(artifact, str):
+            continue
+        path = pathlib.Path(artifact)
+        if not path.is_file():
+            continue
+        try:
+            wrapper = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        raw = wrapper.get("raw") if isinstance(wrapper, dict) else None
+        if not isinstance(raw, dict):
+            continue
+        imported = c2_c3_importer.validate_and_import(raw)
+        if imported.get("accepted") is True:
+            return path, raw, imported
+    return None
+
+
 def _write_state(path: pathlib.Path, state: dict[str, Any]) -> None:
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(state, indent=2) + "\n")
@@ -444,6 +480,9 @@ def main(argv: list[str] | None = None) -> int:
     while (cell := _next_cell(state)) is not None:
             stage, repetition = cell
             key = f"{stage}/r{repetition}"
+            attempt = _attempt_number(state, key)
+            artifact_name = _attempt_name(f"{args.profile}-{stage}-r{repetition}", attempt)
+            repetition_name = _attempt_name(f"r{repetition}", attempt)
             dependencies = next(x["depends_on"] for x in manifest["stages"] if x["id"] == stage)
             if not all(f"{dependency}/r{rep}" in state["accepted"]
                        for dependency in dependencies for rep in range(1, 4)):
@@ -451,6 +490,36 @@ def main(argv: list[str] | None = None) -> int:
             if stage in COLD_BOOT_STAGES and lifecycle.get("measured_cell"):
                 raise SystemExit(f"BLOCKED: {key} requires a fresh boot; current lifecycle already measured "
                                  f"{lifecycle['measured_cell']}")
+            reimport = _accepted_reimport(state, key)
+            if reimport is not None:
+                source_path, raw, imported = reimport
+                reimport_path = args.artifact_root / "reimports" / f"{artifact_name}-reimport.json"
+                reimport_path.parent.mkdir(parents=True, exist_ok=True)
+                raw_bytes = json.dumps(raw, sort_keys=True, separators=(",", ":")).encode()
+                reimport_path.write_text(json.dumps({"source_artifact": str(source_path),
+                    "source_raw_sha256": hashlib.sha256(raw_bytes).hexdigest(),
+                    "imported": imported}, indent=2) + "\n")
+                state["accepted"][key] = str(reimport_path)
+                for index, request in enumerate(raw.get("requests", [])):
+                    body = request.get("request") if isinstance(request, dict) else None
+                    messages = body.get("messages") if isinstance(body, dict) else None
+                    if isinstance(messages, list):
+                        state["prompt_hashes"][_messages_hash(messages)] = f"{key}/q{index}"
+                lifecycle["measured_cell"] = key if stage in COLD_BOOT_STAGES else lifecycle.get("measured_cell")
+                lifecycle.setdefault("post_cold_lifecycle_rule",
+                                     "C/D/E may share the final B lifecycle; prompts remain unique")
+                following = _next_cell(state)
+                if stage in COLD_BOOT_STAGES and following is not None and following[0] in COLD_BOOT_STAGES:
+                    state["status"] = "ready_for_restart"
+                    state["next_command"] = (f"stop the supervisor-owned server; start a fresh {args.profile} server "
+                        f"with new evidence and scheduler paths; rerun this command for {following[0]}/r{following[1]}")
+                _write_state(state_path, state)
+                print(json.dumps({"status": state.get("status"), "accepted": key,
+                                  "reimported_from": str(source_path),
+                                  "next_cell": None if following is None else f"{following[0]}/r{following[1]}"}))
+                if state.get("status") == "ready_for_restart":
+                    return RESTART_EXIT
+                continue
             try:
                 preflight_fraction = preflight_free_vram_gate(args.gpu)
             except (OSError, subprocess.SubprocessError, RuntimeError) as error:
@@ -466,10 +535,11 @@ def main(argv: list[str] | None = None) -> int:
             prompts: list[str] = []
             proofs: list[dict[str, Any]] = []
             builder = ExactPromptBuilder(args.base_url, model,
-                                         artifact_dir=args.artifact_root / "tokenize" / stage / f"r{repetition}")
+                                         artifact_dir=args.artifact_root / "tokenize" / stage /
+                                         repetition_name)
             prompt_dir = args.artifact_root / "prompts" / stage / f"r{repetition}"
             prompt_dir.mkdir(parents=True, exist_ok=True)
-            proof_path = args.artifact_root / "proofs" / stage / f"r{repetition}.json"
+            proof_path = args.artifact_root / "proofs" / stage / f"{repetition_name}.json"
             proof_path.parent.mkdir(parents=True, exist_ok=True)
             cache_variant = "cold-unique-prefix" if stage in COLD_BOOT_STAGES else "unique-prefix"
             try:
@@ -517,10 +587,10 @@ def main(argv: list[str] | None = None) -> int:
                                   ("container_id", "process_identity", "server_evidence_path",
                                    "scheduler_events_path", "warmup_artifact")}
             specs["preflight_free_vram_fraction"] = preflight_fraction
-            spec_path = args.artifact_root / "specs" / f"{args.profile}-{stage}-r{repetition}.json"
+            spec_path = args.artifact_root / "specs" / f"{artifact_name}.json"
             spec_path.parent.mkdir(parents=True, exist_ok=True)
             spec_path.write_text(json.dumps(specs, indent=2) + "\n")
-            output = args.artifact_root / "raw" / f"{args.profile}-{stage}-r{repetition}.json"
+            output = args.artifact_root / "raw" / f"{artifact_name}.json"
             output.parent.mkdir(parents=True, exist_ok=True)
             raw = None
             try:
