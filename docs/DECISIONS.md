@@ -265,3 +265,36 @@
   immutable parent `sha256:d3346cea...`; BuildKit resolves that alias at the
   same digest, and the alias is removed after the build. The source lock keeps
   the upstream official base distinct from this actual parent and build path.
+
+## C2 selected over C3 for native-context service (2026-08-24)
+
+- Scope: choose between two and three configured one-GPU request slots for the
+  TP1 NVFP4+DFlash2 service at context 262,144 and maximum output 131,072.
+- Decision: select C2 (`--max-running-requests 2`, eight FP32 Mamba slots) for
+  the tested full-context service. C2 passed three exact 128K-output
+  repetitions at short prompt, three boundary-safe 130,048+131,072
+  repetitions at simultaneous occupancy two, and three four-arrival tests
+  that drained through exactly two queue waves.
+- Evidence: C2's boundary-safe D aggregate completion throughput was
+  100.480 / 114.772 / 174.512 tok/s and its four-arrival E throughput was
+  123.674 / 128.906 / 143.445 tok/s (min / median / max). Minimum measured free
+  VRAM across accepted C2 C/D/E cells was 11.1731%, above the frozen 5% gate.
+- Rejection of C3: the C3 cold short-request probes admitted three, but its
+  exact near-native B attempt observed at most two running requests. It
+  therefore failed the required exact-occupancy gate and later expensive cells
+  were stopped fail-fast. C3 also resolved a smaller token pool (1,246,816
+  versus 1,289,769) because its extra state/graph reservation did not buy a
+  third full-context resident.
+- Boundary handling: exact 261,120-token B prompts produced 1,022 rather than
+  1,024 forced output tokens on both profiles. This remains recorded as an
+  exact-B failure. A source-artifact-bound, dependency-only two-token waiver
+  unlocked C2's later boundary-safe cells; it did not change their strict
+  131,072-token output requirement and was refused for C3 because C3 also
+  failed occupancy.
+- Consequence: use C2 when serving this profile with a 128K output ceiling and
+  queue additional arrivals. Do not advertise C3 as full-context concurrency
+  three. The optional approximate 0.22 Mamba ratio is unnecessary for this
+  decision and remains an untested, mutually exclusive future factor.
+- Limitation: this is a capacity, memory, throughput, and queue-policy
+  decision. It does not close long-context quality, mixed-load starvation,
+  soak, vision, C4, or two-GPU qualification gates.

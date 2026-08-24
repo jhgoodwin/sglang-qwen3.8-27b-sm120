@@ -261,3 +261,77 @@ The first TP2 launch attempt failed during startup in the custom all-reduce
 path. The successful TP2 runs required the NCCL fallback; this is part of the
 runtime condition for the TP2 measurements and should remain explicit in any
 reproduction.
+
+## C2/C3 native-context campaign (2026-08-24)
+
+This is the measured follow-up to the queued C2/C3 campaign. It retains the
+TP1 NVFP4+DFlash2 `extra_buffer_lazy` recipe, FP8 KV, FP32 SSM, FlashInfer,
+2,048-token chunked prefill, DFlash8, and 0.85 static-memory fraction. The
+server context was 262,144 and the request output ceiling was 131,072. C2 used
+`--max-running-requests 2 --max-mamba-cache-size 8`; C3 used 3 and 12. Neither
+profile used `--mamba-full-memory-ratio`. The evidence image was
+`qwen38-c2c3-evidence@sha256:c06fcb906923c13579ff0a1bd01bc8c728e2fef9e6adc549fb0677a7d21dfddb`
+at SGLang revision `5f55db35e926d50676f75b812640ea2410b0fe0e`.
+
+| profile | resolved token pool | FP8 KV pool | FP32 Mamba pool | DFlash intermediate | CUDA graphs |
+|---|---:|---:|---:|---:|---:|
+| C2 | 1,289,769 | 42,263,183,360 B | 1,385,496,576 B / 8 slots | 3,653,369,856 B / 8 states | batches 1,2; 1,814,036,480 B |
+| C3 | 1,246,816 | 40,855,699,456 B | 2,001,272,832 B / 12 slots | 4,871,159,808 B / 8 states | batches 1,2,3; 1,866,465,280 B |
+
+All three cold C2 and C3 admission probes passed. C2 A1 was accepted through
+the preserved corrected reimport after the original importer rejected its
+reasoning-token accounting; the raw result was not overwritten. C2 admitted
+two short requests and queued the excess arrival; C3 admitted three short
+requests and queued the fourth. Short admission therefore did not establish
+the near-native occupancy result.
+
+The nominal B shape used an exact server-side prompt count of 261,120 and
+requested 1,024 forced output tokens. The server terminated each stream at
+1,022 output tokens with `finish_reason=length`, leaving a two-token internal
+boundary reserve. C2 nevertheless reached two simultaneous near-native
+requests, observed 11.2037% minimum free VRAM, and produced 2,044 aggregate
+completion tokens in 245.283 s. This outcome is preserved as an exact-B
+failure; an explicit dependency-only waiver allowed later, boundary-safe
+cells to run. It did not relabel B as success or relax the later 131,072-token
+exact-output checks.
+
+C3's B attempt admitted three exact 261,120-token prompts but observed at most
+two running and two queued requests, not the required occupancy of three.
+Each returned 1,022 tokens with length termination; aggregate wall time was
+378.130 s, aggregate completion throughput was 8.108 tok/s, and minimum free
+VRAM was 11.1343%. Because the failure included the exact-occupancy gate, the
+two-token dependency waiver was not applicable. The fail-fast campaign did
+not spend GPU time on C3 C/D/E cells.
+
+C2 completed three measured repetitions of every later cell. Values below are
+min / median / max aggregate completion tokens/s. Every request returned the
+exact forced output count with `finish_reason=length`, and no run had an OOM,
+restart, disconnect, or HTTP error.
+
+| cell | request shape and arrivals | accepted | aggregate completion tok/s | minimum free VRAM |
+|---|---|---:|---:|---:|
+| C | 2 simultaneous: 1,024 + 131,072 | 3/3 | 126.246 / 134.238 / 138.693 | 11.3733% |
+| D | 2 simultaneous: 130,048 + 131,072 | 3/3 | 100.480 / 114.772 / 174.512 | 11.1813% |
+| E | 4 simultaneous D-shape arrivals | 3/3 | 123.674 / 128.906 / 143.445 | 11.1731% |
+
+Each E repetition produced 524,288 completion tokens, observed maximum
+occupancy 2, maximum queue depth 3, and exactly two completion-driven waves.
+Aggregate wall times were 4,239.288, 4,067.225, and 3,654.972 seconds.
+Queued-request TTFT depended on which speculative-decoding stream freed a
+slot: observed queued TTFTs ranged from 1,082.222 to 2,252.942 seconds. This
+wide tail and the D throughput range reflect strong generated-content
+sensitivity in DFlash acceptance, not an admission or memory failure.
+
+For the tested full-context service shape, C2 is the measured choice. It
+sustained two boundary-safe 261,120-total-token requests and correctly drained
+four simultaneous arrivals in two waves. C3 consumed more recurrent/graph
+memory, exposed a smaller KV/token pool, and did not realize a third
+near-native resident. These measurements qualify the stated capacity and
+queue behavior only; they do not establish long-context answer quality,
+vision correctness, C4 operation, mixed-prefill starvation, or soak stability.
+
+Preserved machine-readable artifacts are under
+`bench/results/c2-c3-native-20260824/measured/`, including accepted imports,
+failed B outcomes, cold-boot provenance, scheduler JSONL, GPU/process samples,
+and server evidence. The results directory remains excluded from ordinary Git
+publication; the summary above is the tracked record.

@@ -217,3 +217,40 @@ that alias at digest `sha256:d3346cea...`; remove the alias after the build.
 The Containerfile verifies the no-AVX source guard before skipping patch
 `0001`, then applies only the new evidence patch. The default build remains the
 full official-base path and applies both `0001` and `0002`.
+
+## Completed C2/C3 native-context campaign
+
+The 2026-08-24 measured campaign is preserved under
+`bench/results/c2-c3-native-20260824/measured/`. C2 completed A/C/D/E with
+three accepted repetitions per measured cell. C3 completed its three cold
+admission probes, then stopped fail-fast after B failed to reach exact
+near-native occupancy three. Do not resume C3 at C/D/E and present those cells
+as part of this campaign; a future ratio or allocator experiment is a new,
+mutually exclusive factor with new artifacts.
+
+The driver invocation used for the accepted C2 continuation was:
+
+```sh
+python3 -m bench.c2_c3_campaign run \
+  --profile c2 \
+  --artifact-root bench/results/c2-c3-native-20260824/measured/c2 \
+  --server-evidence bench/results/c2-c3-native-20260824/measured/c2/boot-05/server-evidence.json \
+  --scheduler-events bench/results/c2-c3-native-20260824/measured/c2/boot-05/scheduler.jsonl \
+  --server-pid auto --gpu 0 --timeout 7200 \
+  --waive-b-two-token-reserve
+```
+
+The waiver is intentionally narrow. It requires the preserved B artifact and
+hash, exact 261,120 prompt count, requested 1,024 and observed 1,022 output
+tokens, length termination, and complete token IDs/timestamps. It only
+satisfies the dependency needed to attempt C/D/E; B remains failed. C3 cannot
+use it because its B evidence also failed exact occupancy. C/D/E continue to
+require exactly 131,072 output tokens per request.
+
+For reporting, use the imported objects inside each raw JSON artifact rather
+than parsing server text logs. The import contains aligned arrival, admission,
+start, completion, token, ITL, throughput, GPU/process, memory-gate, and queue
+metrics. Retain the cold-boot directories, scheduler JSONL, failed artifacts,
+and lifecycle state together. Raw artifacts are ignored by Git intentionally;
+publish the tracked summary in `BENCHMARK_RESULTS.md` and redact machine
+identity if distributing a larger evidence bundle.
