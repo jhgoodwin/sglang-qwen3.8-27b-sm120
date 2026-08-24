@@ -331,3 +331,23 @@
 - Consequence: production K/V capacity is lower than FP8 and must be measured
   again for any future capacity or throughput claim; C2/C3 evidence remains
   intentionally comparable under their locked FP8 contract.
+
+## BF16 near-full-context concurrency probe (2026-08-24)
+
+- Scope: provide a reusable operational check for two simultaneous BF16-K/V
+  requests near the native context limit; this is not a C2/C3 qualification
+  importer or capacity claim.
+- Decision: `bench/bf16_context_probe.py` defaults to two distinct,
+  server-tokenized 250,000-token prompts, forced 6,000-token streaming
+  completions with explicit `reasoning_effort=medium` in both tokenize and
+  generation requests, and a synchronized submission barrier. It requires
+  canonical model/runtime identity plus explicit `/server_info` evidence for
+  BF16 K/V, context, two running slots, and a token capacity of at least
+  512,000 before sending requests.
+- Decision: retain complete raw SSE lines/events, request IDs, timings, and
+  exact final usage; success requires both requests to overlap and report
+  250,000 prompt + 6,000 completion tokens with `finish_reason=length`.
+- Consequence: missing or insufficient server capacity evidence fails closed;
+  the overlap result is client-observed generation interval evidence only
+  (not scheduler proof of simultaneous KV residency), and probe output must
+  not be imported as a formal benchmark qualification.
