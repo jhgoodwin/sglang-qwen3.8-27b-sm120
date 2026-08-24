@@ -1,5 +1,7 @@
 import json
 import pathlib
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -13,6 +15,14 @@ class BF16ContextProbeTests(unittest.TestCase):
                 "version": "0.0.0.dev1+g5f55db35e",
                 "context_length": 262144, "kv_cache_dtype": "bf16",
                 "max_running_requests": 2, "max_total_num_tokens": 512000}
+
+    def test_file_path_entrypoint_loads_repository_package(self):
+        script = pathlib.Path(__file__).resolve().parents[1] / "bench" / "bf16_context_probe.py"
+        result = subprocess.run(
+            [sys.executable, str(script), "--help"], capture_output=True, text=True, check=False
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--prompt-tokens", result.stdout)
 
     def test_capacity_arithmetic_and_dtype_reject(self):
         evidence = probe.capacity_preflight(self.good_info())

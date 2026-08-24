@@ -13,11 +13,15 @@ import datetime as dt
 import hashlib
 import json
 import pathlib
+import sys
 import threading
 import time
 import urllib.error
 import urllib.request
 from typing import Any
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from bench.c2_c3_campaign import ExactPromptBuilder
 
