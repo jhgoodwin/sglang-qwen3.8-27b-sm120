@@ -157,3 +157,31 @@ profile/instrumentation unit must provide the scheduler JSONL and token timing
 extension before GPU campaign cells can be accepted. The full campaign remains
 multi-hour, and no launcher profile or Phase 7 manifest is changed by this
 harness unit.
+
+The runtime overlay supplies that evidence path but keeps it disabled by
+default. Set `SGLANG_C2C3_EVIDENCE_PATH` to an absolute JSONL filename in an
+existing directory before server startup. The scheduler opens the file in
+append mode with permissions `0600`; the operator must retain the file rather
+than truncate it during a run. When enabled, every OpenAI Chat request must
+carry a unique, nonempty `X-Request-ID` of at most 256 visible characters. The
+header becomes the internal scheduler request ID, scheduler transitions are
+appended to the JSONL file, and generated token IDs receive strictly increasing
+API-server emission timestamps in the corresponding OpenAI SSE events. With
+the environment variable absent, request IDs, SSE payloads, and scheduler I/O
+retain their upstream behavior.
+
+The runner's `--server-pid` must name the primary TP scheduler process, and the
+runner must see that process through the same PID namespace. This is required
+because both the JSONL event and `/proc/PID/stat` sampler identify it as
+`pid:<pid>:start_ticks:<ticks>`. The JSONL path must likewise be visible at the
+same location to the server and runner, for example through a shared bind mount.
+The overlay does one locked `O_APPEND` write per transition and deliberately
+does not `fsync` the scheduler hot path. Completed writes therefore preserve
+partial evidence across client failures and normal shutdown, while a sudden
+host or kernel failure may lose the final buffered filesystem writes.
+
+For the campaign overlay build, alias the already-qualified no-AVX image
+locally, pass that alias as `BASE_IMAGE`, and set `BASE_HAS_NOAVX=1`. The
+Containerfile verifies the no-AVX source guard before skipping patch `0001`,
+then applies only the new evidence patch. The default build remains the full
+official-base path and applies both `0001` and `0002`.

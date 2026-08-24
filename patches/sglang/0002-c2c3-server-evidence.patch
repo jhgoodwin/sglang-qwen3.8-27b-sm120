@@ -1,0 +1,441 @@
+diff --git a/python/sglang/srt/campaign_evidence.py b/python/sglang/srt/campaign_evidence.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..0781807798daca71cf1b6c56de2fdc8ce334d97d
+--- /dev/null
++++ b/python/sglang/srt/campaign_evidence.py
+@@ -0,0 +1,184 @@
++"""Opt-in, fail-closed evidence for the Qwen3.8 C2/C3 campaign.
++
++Set ``SGLANG_C2C3_EVIDENCE_PATH`` to an absolute JSONL path before starting
++the server.  The scheduler process is the sole JSONL writer.  API processes
++use the same opt-in to preserve X-Request-ID and annotate emitted SSE tokens,
++but never write scheduler transitions.
++"""
++
++from __future__ import annotations
++
++import datetime as dt
++import json
++import os
++import pathlib
++import threading
++import time
++from typing import Any, Mapping, MutableMapping, Sequence
++
++ENV_NAME = "SGLANG_C2C3_EVIDENCE_PATH"
++SCHEMA = "qwen38.server-scheduler-event"
++SOURCE = "server_scheduler"
++
++_singleton_lock = threading.Lock()
++_recorder = None
++
++
++def configured_path() -> pathlib.Path | None:
++    raw = os.environ.get(ENV_NAME)
++    if raw is None or not raw.strip():
++        return None
++    path = pathlib.Path(raw)
++    if not path.is_absolute():
++        raise ValueError(f"{ENV_NAME} must be an absolute path")
++    return path
++
++
++def enabled() -> bool:
++    return configured_path() is not None
++
++
++def request_id_from_headers(headers: Mapping[str, str] | None) -> str | None:
++    """Return the campaign correlation ID only while evidence is enabled."""
++    if not enabled() or headers is None:
++        return None
++    value = headers.get("x-request-id")
++    if value is None:
++        raise ValueError("C2/C3 evidence requires X-Request-ID")
++    value = value.strip()
++    if not value or len(value) > 256 or any(ord(char) < 0x20 for char in value):
++        raise ValueError("X-Request-ID must be 1-256 visible characters")
++    return value
++
++
++def stream_token_ids(
++    output_ids: Sequence[int],
++    *,
++    incremental: bool,
++    offsets: MutableMapping[int, int],
++    index: int,
++) -> list[int]:
++    """Return only newly emitted scheduler token IDs for one choice."""
++    if not enabled():
++        return []
++    all_ids = [int(token_id) for token_id in output_ids]
++    if incremental:
++        token_ids = all_ids
++    else:
++        offset = offsets.get(index, 0)
++        if offset < 0 or offset > len(all_ids):
++            raise ValueError("non-monotonic OpenAI output token stream")
++        token_ids = all_ids[offset:]
++        offsets[index] = len(all_ids)
++    return token_ids
++
++
++def token_emission_timestamps(
++    token_ids: Sequence[int], state: MutableMapping[str, int]
++) -> list[float]:
++    """Timestamp tokens immediately before their SSE chunk is serialized."""
++    timestamps = []
++    last_ns = state.get("last_ns", 0)
++    for _ in token_ids:
++        # Epoch-scale JSON floats need a microsecond floor to remain distinct.
++        last_ns = max(time.time_ns(), last_ns + 1_000)
++        timestamps.append(last_ns / 1_000_000_000)
++    state["last_ns"] = last_ns
++    return timestamps
++
++
++def _process_identity() -> str:
++    stat = pathlib.Path(f"/proc/{os.getpid()}/stat").read_text()
++    tail = stat[stat.rfind(")") + 2 :].split()
++    return f"pid:{os.getpid()}:start_ticks:{tail[19]}"
++
++
++class NullRecorder:
++    def queued(self, request_id: str) -> None:
++        pass
++
++    def admitted(self, request_id: str) -> None:
++        pass
++
++    def started(self, request_id: str) -> None:
++        pass
++
++    def terminal(self, request_id: str, *, failed: bool) -> None:
++        pass
++
++
++class SchedulerEvidenceRecorder:
++    """Append compact post-transition records with one scheduler-thread write."""
++
++    def __init__(self, path: pathlib.Path):
++        if not path.parent.is_dir():
++            raise ValueError(f"evidence directory does not exist: {path.parent}")
++        self._fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
++        self._lock = threading.Lock()
++        self._queued: set[str] = set()
++        self._active: set[str] = set()
++        self._started: set[str] = set()
++        self.server_process_id = _process_identity()
++
++    def _emit(self, event: str, request_id: str) -> None:
++        row: dict[str, Any] = {
++            "schema": SCHEMA,
++            "source": SOURCE,
++            "timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
++            "event": event,
++            "client_request_id": request_id,
++            "server_process_id": self.server_process_id,
++            "running": len(self._active),
++            "queued": len(self._queued),
++        }
++        payload = (json.dumps(row, separators=(",", ":")) + "\n").encode()
++        if len(payload) > 4096:
++            raise ValueError("scheduler evidence record exceeds atomic line budget")
++        # O_APPEND plus one write retains complete lines across concurrent
++        # producers.  No fsync is done on the scheduler hot path; completed
++        # writes survive client timeout/disconnect and normal container stop.
++        written = os.write(self._fd, payload)
++        if written != len(payload):
++            raise OSError("short scheduler evidence write")
++
++    def queued(self, request_id: str) -> None:
++        with self._lock:
++            if request_id in self._queued or request_id in self._active:
++                return
++            self._queued.add(request_id)
++            self._emit("queued", request_id)
++
++    def admitted(self, request_id: str) -> None:
++        with self._lock:
++            if request_id in self._active:
++                return
++            self._queued.discard(request_id)
++            self._active.add(request_id)
++            self._emit("admitted", request_id)
++
++    def started(self, request_id: str) -> None:
++        with self._lock:
++            if request_id not in self._active or request_id in self._started:
++                return
++            self._started.add(request_id)
++            self._emit("started", request_id)
++
++    def terminal(self, request_id: str, *, failed: bool) -> None:
++        with self._lock:
++            if request_id not in self._active:
++                return
++            self._active.remove(request_id)
++            self._queued.discard(request_id)
++            self._started.discard(request_id)
++            self._emit("failed" if failed else "completed", request_id)
++
++
++def get_scheduler_recorder(*, primary_rank: bool = True):
++    """Return one process-local recorder, or a no-op when disabled/non-primary."""
++    global _recorder
++    if not primary_rank or not enabled():
++        return NullRecorder()
++    with _singleton_lock:
++        if _recorder is None:
++            _recorder = SchedulerEvidenceRecorder(configured_path())
++        return _recorder
+diff --git a/python/sglang/srt/entrypoints/openai/serving_chat.py b/python/sglang/srt/entrypoints/openai/serving_chat.py
+index 31c2637bb057cc514fe5f62db8eb4e3b43dcac13..4cea1fd4a73565c73ebff336b4d42655ffbe844a 100644
+--- a/python/sglang/srt/entrypoints/openai/serving_chat.py
++++ b/python/sglang/srt/entrypoints/openai/serving_chat.py
+@@ -75,6 +75,11 @@ from sglang.srt.entrypoints.openai.utils import (
+     spec_tokens_details_from_meta_info,
+     to_openai_style_logprobs,
+ )
++from sglang.srt.campaign_evidence import (
++    request_id_from_headers,
++    stream_token_ids,
++    token_emission_timestamps,
++)
+ from sglang.srt.entrypoints.request_headers import apply_header_overrides
+ from sglang.srt.environ import envs
+ from sglang.srt.function_call.core_types import ToolCallItem
+@@ -696,6 +701,8 @@ class OpenAIServingChat(OpenAIServingBase):
+         prompt_tokens: Dict[int, int],
+         reasoning_tokens: Dict[int, int],
+         completion_tokens: Dict[int, int],
++        evidence_token_ids: List[int],
++        evidence_timestamp_state: Dict[str, int],
+     ) -> AsyncGenerator[str, None]:
+         """Generate SSE chunks for streaming content."""
+         offset = stream_offsets.get(index, 0)
+@@ -736,9 +743,23 @@ class OpenAIServingChat(OpenAIServingBase):
+                     model=request.model,
+                     index=index,
+                     reasoning_content=reasoning_text,
++                    content=(
++                        delta
++                        if evidence_token_ids and not self._tool_call_parsing_active(request)
++                        else None
++                    ),
+                     logprobs=remaining_logprobs,
+                     usage=usage,
++                    token_ids=evidence_token_ids or None,
++                    token_timestamps_s=(
++                        token_emission_timestamps(evidence_token_ids, evidence_timestamp_state)
++                        if evidence_token_ids
++                        else None
++                    ),
+                 )
++                if evidence_token_ids and delta and not self._tool_call_parsing_active(request):
++                    delta = ""
++                evidence_token_ids = []
+                 remaining_logprobs = None
+
+         # Handle tool calls
+@@ -785,7 +806,14 @@ class OpenAIServingChat(OpenAIServingBase):
+                     content=delta,
+                     logprobs=remaining_logprobs,
+                     usage=usage,
++                    token_ids=evidence_token_ids or None,
++                    token_timestamps_s=(
++                        token_emission_timestamps(evidence_token_ids, evidence_timestamp_state)
++                        if evidence_token_ids
++                        else None
++                    ),
+                 )
++                evidence_token_ids = []
+                 remaining_logprobs = None
+
+         # Flush logprobs still unattached this step — only when a parser is
+@@ -814,6 +842,21 @@ class OpenAIServingChat(OpenAIServingBase):
+                 usage=usage,
+             )
+
++        # Token batches that decode only to parser framing or empty text still
++        # need a retained OpenAI SSE observation.  Empty delta chunks are
++        # ignored by normal OpenAI clients and by visible-text accounting.
++        if evidence_token_ids:
++            yield build_sse_content(
++                chunk_id=content["meta_info"]["id"],
++                created=int(time.time()),
++                model=request.model,
++                index=index,
++                token_ids=evidence_token_ids,
++                token_timestamps_s=token_emission_timestamps(
++                    evidence_token_ids, evidence_timestamp_state
++                ),
++            )
++
+     def _tool_call_parsing_active(self, request: ChatCompletionRequest) -> bool:
+         """Whether this request's output runs through the tool-call parser.
+
+@@ -1057,6 +1100,11 @@ class OpenAIServingChat(OpenAIServingBase):
+             and envs.SGLANG_ENABLE_REQUEST_HEADER_OVERRIDES.get()
+         ):
+             apply_header_overrides(adapted_request, raw_request.headers)
++        campaign_request_id = request_id_from_headers(
++            raw_request.headers if raw_request is not None else None
++        )
++        if campaign_request_id is not None:
++            adapted_request.rid = campaign_request_id
+
+         return adapted_request, request
+
+@@ -1517,6 +1565,8 @@ class OpenAIServingChat(OpenAIServingBase):
+         # State tracking for streaming
+         is_firsts = {}
+         stream_offsets = {}
++        evidence_token_offsets = {}
++        evidence_timestamp_state = {}
+         n_prev_tokens = {}
+         has_tool_calls = {}
+         finish_reasons = {}
+@@ -1545,6 +1595,12 @@ class OpenAIServingChat(OpenAIServingBase):
+                 adapted_request, raw_request
+             ):
+                 index = content.get("index", 0)
++                evidence_token_ids = stream_token_ids(
++                    content.get("output_ids", []),
++                    incremental=self.tokenizer_manager.server_args.incremental_streaming_output,
++                    offsets=evidence_token_offsets,
++                    index=index,
++                )
+
+                 prompt_tokens[index] = self._reported_prompt_tokens(
+                     content["meta_info"]
+@@ -1634,6 +1690,8 @@ class OpenAIServingChat(OpenAIServingBase):
+                     prompt_tokens=prompt_tokens,
+                     reasoning_tokens=reasoning_tokens,
+                     completion_tokens=completion_tokens,
++                    evidence_token_ids=evidence_token_ids,
++                    evidence_timestamp_state=evidence_timestamp_state,
+                 ):
+                     yield chunk
+
+diff --git a/python/sglang/srt/entrypoints/openai/sse_utils.py b/python/sglang/srt/entrypoints/openai/sse_utils.py
+index ec83f3c9dc0f0a62408703e683d7cdcc5102d07a..3f2f498beae4746fe3ea6f34f51eff01ed732b82 100644
+--- a/python/sglang/srt/entrypoints/openai/sse_utils.py
++++ b/python/sglang/srt/entrypoints/openai/sse_utils.py
+@@ -44,6 +44,8 @@ class StreamChunk(msgspec.Struct, omit_defaults=True):
+     model: str
+     choices: List[StreamChoice]
+     usage: Optional[dict] = None
++    token_ids: Optional[List[int]] = None
++    token_timestamps_s: Optional[List[float]] = None
+
+
+ _stream_encoder = msgspec.json.Encoder()
+@@ -61,6 +63,8 @@ def build_sse_content(
+     logprobs: Optional[dict] = None,
+     matched_stop: Union[None, int, str] = None,
+     usage: Optional[dict] = None,
++    token_ids: Optional[List[int]] = None,
++    token_timestamps_s: Optional[List[float]] = None,
+ ) -> str:
+     """Build an SSE chunk string for content/reasoning updates.
+
+@@ -95,5 +99,7 @@ def build_sse_content(
+         model=model,
+         choices=[choice],
+         usage=usage,
++        token_ids=token_ids,
++        token_timestamps_s=token_timestamps_s,
+     )
+     return (_SSE_DATA_B + _stream_encoder.encode(chunk) + _SSE_NL_B).decode()
+diff --git a/python/sglang/srt/managers/scheduler.py b/python/sglang/srt/managers/scheduler.py
+index b617ed301d4b8c051a8c828e06eea53056aaa99c..b2a1da706801d9dfde2bfc059699d32ab6b09975 100644
+--- a/python/sglang/srt/managers/scheduler.py
++++ b/python/sglang/srt/managers/scheduler.py
+@@ -110,6 +110,7 @@ from sglang.srt.layers.quantization.fp8_utils import initialize_fp8_gemm_config
+ from sglang.srt.layers.quantization.unquant import initialize_bf16_gemm_config
+ from sglang.srt.lora.lora_drainer import LoRADrainer
+ from sglang.srt.lora.lora_overlap_loader import LoRAOverlapLoader
++from sglang.srt.campaign_evidence import get_scheduler_recorder
+ from sglang.srt.managers.disagg_service import maybe_create_ascend_config_store
+ from sglang.srt.managers.hisparse_coordinator import HiSparseCoordinator
+ from sglang.srt.managers.io_struct import (
+@@ -1145,6 +1146,13 @@ class Scheduler(
+         self.cur_batch_for_debug: Optional[ScheduleBatch] = None
+         # The last forward batch
+         self.last_batch: Optional[ScheduleBatch] = None
++        self.c2c3_evidence = get_scheduler_recorder(
++            primary_rank=(
++                self.ps.pp_rank == 0
++                and self.ps.attn_tp_rank == 0
++                and self.ps.attn_cp_rank == 0
++            )
++        )
+         self.forward_ct = 0
+         self.return_health_check_ipcs: Deque[Optional[str]] = deque()
+         self.flush_wrapper = SchedulerFlushWrapper(
+@@ -2772,6 +2780,7 @@ class Scheduler(
+                 return
+             self._prefetch_kvcache(req)
+             self.waiting_queue.append(req)
++            self.c2c3_evidence.queued(req.rid)
+             req.time_stats.set_wait_queue_entry_time()
+         elif self.disaggregation_mode == DisaggregationMode.PREFILL:
+             self._prefetch_kvcache(req)
+@@ -3441,6 +3450,8 @@ class Scheduler(
+
+         can_run_set = set(can_run_list)
+         self.waiting_queue = [x for x in self.waiting_queue if x not in can_run_set]
++        for req in can_run_list:
++            self.c2c3_evidence.admitted(req.rid)
+         if adder.preempt_list:
+             for req in adder.preempt_list:
+                 self._add_request_to_queue(req)
+diff --git a/python/sglang/srt/managers/scheduler_components/output_streamer.py b/python/sglang/srt/managers/scheduler_components/output_streamer.py
+index 18a42407af7eb1461aad41a9e35e85b671031f2c..ac7f9d94af795c80328b5fa7bb3ea27afcd317e8 100644
+--- a/python/sglang/srt/managers/scheduler_components/output_streamer.py
++++ b/python/sglang/srt/managers/scheduler_components/output_streamer.py
+@@ -13,6 +13,7 @@ from typing import (
+ import torch
+ import zmq
+
++from sglang.srt.campaign_evidence import get_scheduler_recorder
+ from sglang.srt.disaggregation.utils import DisaggregationMode
+ from sglang.srt.distributed.parallel_state_wrapper import ParallelState
+ from sglang.srt.environ import envs
+@@ -147,6 +148,13 @@ class SchedulerOutputStreamer:
+         )
+
+         acc = _GenerationStreamAccumulator(
++            evidence=get_scheduler_recorder(
++                primary_rank=(
++                    self.ps.pp_rank == 0
++                    and self.ps.attn_tp_rank == 0
++                    and self.ps.attn_cp_rank == 0
++                )
++            ),
+             return_logprob=return_logprob,
+             return_hidden_states=return_hidden_states,
+             return_routed_experts=return_routed_experts,
+@@ -264,6 +272,7 @@ class SchedulerOutputStreamer:
+
+ @dataclass(slots=True, kw_only=True)
+ class _GenerationStreamAccumulator:
++    evidence: Any
+     return_logprob: bool
+     return_hidden_states: bool
+     return_routed_experts: bool
+@@ -387,9 +396,14 @@ class _GenerationStreamAccumulator:
+                     len(req.output_ids) % self.default_force_stream_interval == 0
+                 )
+
++        self.evidence.started(req.rid)
+         if not should_output:
+             return
+
++        if req.finished():
++            finish_type = req.finished_reason.to_json().get("type")
++            self.evidence.terminal(req.rid, failed=finish_type == "abort")
++
+         send_token_offset = req.send_token_offset
+         send_output_token_logprobs_offset = req.send_output_token_logprobs_offset
+         self.rids.append(req.rid)

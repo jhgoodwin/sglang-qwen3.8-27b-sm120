@@ -205,3 +205,24 @@
   rejects duplicate/conflicting flags, the initial ratio flag, disabled CUDA
   graphs, and pool/graph objects without measured byte counts, state shape,
   capture coverage, and a non-placeholder source.
+
+## C2/C3 runtime evidence overlay (2026-08-24)
+
+- Scope: connect the concurrent harness evidence contract to the pinned
+  SGLang production request, scheduler, output, and OpenAI SSE paths without
+  adding campaign profiles or making a GPU qualification claim.
+- Decision: patch the runtime with a separate `0002` overlay controlled only
+  by `SGLANG_C2C3_EVIDENCE_PATH`. Disabled mode preserves upstream request IDs,
+  SSE fields, and scheduler I/O. Enabled mode requires `X-Request-ID`, uses it
+  as the internal request ID, records post-transition queue/running counts in
+  scheduler JSONL, and pairs scheduler output IDs with strictly increasing
+  API emission timestamps on OpenAI SSE events.
+- Decision: scheduler evidence uses one locked, compact `O_APPEND` write per
+  transition without `fsync`. This retains every completed line with low hot
+  path overhead, but does not claim durability against sudden host or kernel
+  failure. The runner and primary TP scheduler must share a PID namespace so
+  `pid:<pid>:start_ticks:<ticks>` is independently reproducible from `/proc`.
+- Consequence: static patched-source tests prove the exact pinned call sites,
+  compilation, JSONL state transitions, request correlation, and SSE token
+  fields. They make no admission, memory, throughput, queue-wave, or GPU claim;
+  those remain gated on a built overlay and later live campaign profiles.
