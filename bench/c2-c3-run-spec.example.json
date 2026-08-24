@@ -1,0 +1,14 @@
+{
+  "schema": "qwen38.c2-c3-run-spec",
+  "version": 1,
+  "run_id": "DRY-RUN-c2-stage-a",
+  "profile": "c2",
+  "stage": "A-boot-admission",
+  "base_url": "http://127.0.0.1:11447",
+  "model": "Qwen/Qwen3.8-27B",
+  "requests": [
+    {"client_request_id": "a-c2-0", "prompt": "Reply briefly.", "max_tokens": 32, "forced_output": false, "reasoning_effort": "medium"},
+    {"client_request_id": "a-c2-1", "prompt": "Reply briefly.", "max_tokens": 32, "forced_output": false, "reasoning_effort": "medium"},
+    {"client_request_id": "a-c2-excess", "prompt": "Reply briefly.", "max_tokens": 32, "forced_output": false, "reasoning_effort": "medium"}
+  ]
+}

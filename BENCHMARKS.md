@@ -95,10 +95,65 @@ the multivariate question into staged C2 and C3 profiles at the native
   boundary-safe combined occupancy, then four simultaneous arrivals to expose
   C2/C3 queue waves.
 
-The campaign is not executable yet. The existing prompt runner is sequential;
-a concurrent runner/importer must preserve aligned occupancy and admission
-timestamps, partial streams, exact server prompt-token counts, and timeout,
-OOM, restart, HTTP-error, incomplete, and clamp outcomes before any GPU run.
-The full three-repetition campaign is multi-hour because each forced-output
-cell requests 131,072 tokens. No launcher profile or Phase 7 manifest is
-changed by this queue plan.
+The campaign uses the separate `bench/c2_c3_runner.py` concurrent streaming
+client and the fail-closed `bench/c2_c3_importer.py`; the sequential coding
+prompt runner and Phase 7 contract remain unchanged. The version-1 raw format
+is machine-described by `bench/c2-c3-run-schema.json`. A non-networked request
+and barrier plan can be checked with:
+
+```sh
+python3 bench/c2_c3_runner.py dry-run \
+  --spec bench/c2-c3-run-spec.example.json --output /tmp/c2-c3-dry-run.json
+```
+
+Live mode additionally requires a static server-evidence JSON object, the host
+server PID, and a server-generated scheduler JSONL stream. Each scheduler line
+must use schema `qwen38.server-scheduler-event`, source `server_scheduler`, and
+carry a UTC timestamp, event (`queued`, `admitted`, `started`, `completed`, or
+`failed`), client request ID, server process identity, and the resulting
+running/queued counts. The request ID is sent as `X-Request-ID`. This is the
+only accepted admission/queue source; response headers, client timing, and
+aggregate-only gauges do not establish scheduler admission.
+
+```sh
+python3 bench/c2_c3_runner.py run --spec run-spec.json --output raw-run.json \
+  --server-evidence server-evidence.json --scheduler-events scheduler.jsonl \
+  --server-pid PID --gpu 0 --sample-interval 1
+python3 bench/c2_c3_importer.py raw-run.json --output imported-run.json
+```
+
+The server-evidence object must contain immutable image/source/model/draft,
+recipe, and hardware identities; the exact server argument vector; resolved
+native context and profile concurrency; memory-pool and CUDA-graph details.
+The argument vector is parsed without normalization: required flags must occur
+exactly once with the campaign values for TP1, FP8 KV, FP32 SSM, FlashInfer,
+2,048-token chunks, 0.85 static memory, `extra_buffer_lazy`, DFlash8, native
+context, profile concurrency, and the C2/C3 Mamba state pin. The initial
+profiles reject `--mamba-full-memory-ratio` and `--disable-cuda-graph`.
+Resolved capacity must separately record the 131,072 campaign output cap,
+native context, TP, state pin, and planned profile port.
+
+Memory evidence is not an arbitrary metadata map. It records a non-placeholder
+measurement source plus positive byte counts for the FP8 KV pool, FP32 Mamba
+state pool (8 C2 or 12 C3 slots), and eight-state DFlash intermediate pool.
+CUDA-graph evidence records its measurement source, enabled state, positive
+memory bytes, and unique captured batch sizes covering batch one and exact
+profile concurrency. If the live runtime cannot yet extract those fields, the
+import remains rejected; operators must not insert descriptive placeholders.
+The runner continuously samples GPU state and `/proc/PID/stat` over the request
+interval and retains every SSE line/event even when the stream fails. Import
+requires aligned arrivals, request-correlated scheduler admission/start,
+observed exact occupancy and queueing where expected, interval-covering GPU and
+process samples, at least 5% free VRAM, final server usage, and exact
+forced-output count with `length` termination. Prompt, completion, reasoning,
+and visible counts come only from final server usage. Optional boundary proof
+comes only from exact server `prompt_tokens` usage.
+
+SSE event gaps are never labeled token ITL. ITL/max-ITL are available only
+when every content-bearing event supplies server `token_ids` paired one-to-one
+with `token_timestamps_s`; otherwise the artifact explicitly records the
+metric as unavailable and import rejects the qualification claim. The runtime
+profile/instrumentation unit must provide the scheduler JSONL and token timing
+extension before GPU campaign cells can be accepted. The full campaign remains
+multi-hour, and no launcher profile or Phase 7 manifest is changed by this
+harness unit.

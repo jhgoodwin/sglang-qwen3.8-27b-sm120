@@ -176,3 +176,32 @@
   131,072+131,072 cell gated on proof that transport preserves exact server
   prompt tokens. The manifest's multi-hour output-volume estimate is planning
   metadata, not a benchmark result.
+
+## C2/C3 concurrent evidence boundary (2026-08-24)
+
+- Scope: make the queued C2/C3 campaign measurable without weakening the
+  queue-rejecting Phase 7 schema or the sequential operational prompt runner.
+- Decision: use `qwen38.c2-c3-concurrent-run` version 1 as a distinct raw
+  schema, with barrier-released streaming requests and fail-closed import.
+  Admission, start, queue depth, and occupancy require request-correlated
+  `qwen38.server-scheduler-event` records from the server scheduler. Client
+  timing, HTTP headers, and aggregate-only gauges are not scheduler evidence.
+- Decision: retain every raw SSE line/event and partial content/reasoning for
+  failed requests. Token ITL is supported only by a server token ID and server
+  timestamp pair for every emitted token; SSE chunk gaps remain explicitly
+  unavailable. Forced-output success requires the exact final server
+  completion count and `length` termination. Exact-boundary transport proof
+  requires exact final server prompt usage.
+- Consequence: the importer rejects missing, placeholder, malformed, or
+  interval-misaligned server/process/GPU evidence, runtime identity drift,
+  wrong occupancy, missing queue evidence, restarts, incomplete output, and a
+  minimum observed free-VRAM fraction below 5%. Runtime integration must emit
+  the scheduler JSONL and token timestamps before a GPU cell can qualify; this
+  harness decision itself makes no C2/C3 performance or capacity claim.
+- Decision: server evidence is semantic rather than a nonempty metadata bag.
+  The importer parses the preserved argument vector and requires the exact
+  C2/C3 concurrency and Mamba pins plus the locked TP1 FP8-KV/FP32-SSM,
+  FlashInfer, chunking, memory, `extra_buffer_lazy`, and DFlash8 values. It
+  rejects duplicate/conflicting flags, the initial ratio flag, disabled CUDA
+  graphs, and pool/graph objects without measured byte counts, state shape,
+  capture coverage, and a non-placeholder source.

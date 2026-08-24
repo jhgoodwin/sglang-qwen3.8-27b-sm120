@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qwen38.c2-c3-concurrent-run.v1",
+  "title": "Qwen3.8 C2/C3 concurrent campaign raw run",
+  "type": "object",
+  "required": ["schema", "version", "run_id", "profile", "stage", "timestamps", "request_count", "requests", "server", "scheduler_evidence", "gpu_telemetry", "collector"],
+  "properties": {
+    "schema": {"const": "qwen38.c2-c3-concurrent-run"},
+    "version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "profile": {"enum": ["c2", "c3"]},
+    "stage": {"type": "string", "minLength": 1},
+    "timestamps": {"$ref": "#/$defs/runTimestamps"},
+    "request_count": {"type": "integer", "minimum": 1},
+    "requests": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/request"}},
+    "server": {"$ref": "#/$defs/server"},
+    "scheduler_evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/schedulerWrapper"}},
+    "gpu_telemetry": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/gpuSample"}},
+    "collector": {
+      "type": "object",
+      "required": ["gpu_interval_s", "scheduler_source", "scheduler_source_contract"]
+    },
+    "boundary_proof": {
+      "type": ["object", "null"],
+      "properties": {"expected_server_prompt_tokens": {"type": "integer", "minimum": 1}},
+      "required": ["expected_server_prompt_tokens"]
+    }
+  },
+  "$defs": {
+    "stamp": {
+      "type": "object",
+      "required": ["utc", "monotonic_s"],
+      "properties": {"utc": {"type": "string", "format": "date-time"}, "monotonic_s": {"type": "number"}}
+    },
+    "runTimestamps": {
+      "type": "object",
+      "required": ["collector_start", "barrier_release", "run_end"],
+      "properties": {
+        "collector_start": {"$ref": "#/$defs/stamp"},
+        "barrier_release": {"$ref": "#/$defs/stamp"},
+        "run_end": {"$ref": "#/$defs/stamp"}
+      }
+    },
+    "request": {
+      "type": "object",
+      "required": ["client_request_id", "forced_output", "requested_output_tokens", "timestamps", "http_status", "raw_sse", "events", "content", "reasoning_content", "finish_reason", "usage", "failure_bucket", "error"],
+      "properties": {
+        "client_request_id": {"type": "string", "minLength": 1},
+        "forced_output": {"type": "boolean"},
+        "requested_output_tokens": {"type": "integer", "minimum": 1},
+        "expected_prompt_tokens": {"type": ["integer", "null"], "minimum": 1},
+        "timestamps": {
+          "type": "object",
+          "required": ["arrival", "submission", "headers", "first_event", "first_token", "completion"]
+        },
+        "raw_sse": {"type": "array"},
+        "events": {"type": "array"},
+        "content": {"type": "string"},
+        "reasoning_content": {"type": "string"},
+        "finish_reason": {"type": ["string", "null"]},
+        "usage": {"type": ["object", "null"]},
+        "failure_bucket": {"enum": [null, "timeout", "oom", "restart", "http_error", "disconnect"]},
+        "error": {"type": ["object", "null"]}
+      }
+    },
+    "server": {
+      "type": "object",
+      "required": ["identities", "server_args", "resolved_capacity", "memory_pools", "cuda_graphs", "process"],
+      "properties": {
+        "identities": {"type": "object"},
+        "server_args": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "resolved_capacity": {
+          "type": "object",
+          "required": ["max_running_requests", "context_length", "max_output_tokens", "tp_size", "max_mamba_cache_size", "planned_port"],
+          "properties": {
+            "max_running_requests": {"enum": [2, 3]},
+            "context_length": {"const": 262144},
+            "max_output_tokens": {"const": 131072},
+            "tp_size": {"const": 1},
+            "max_mamba_cache_size": {"enum": [8, 12]},
+            "planned_port": {"enum": [11447, 11448]}
+          }
+        },
+        "memory_pools": {
+          "type": "object",
+          "required": ["source", "kv_cache", "mamba_state_cache", "dflash_intermediate"],
+          "properties": {
+            "source": {"enum": ["server_info", "server_log", "runtime_introspection"]},
+            "kv_cache": {"$ref": "#/$defs/typedPool"},
+            "mamba_state_cache": {"$ref": "#/$defs/mambaPool"},
+            "dflash_intermediate": {"$ref": "#/$defs/dflashPool"}
+          }
+        },
+        "cuda_graphs": {
+          "type": "object",
+          "required": ["source", "enabled", "captured_batch_sizes", "memory_bytes"],
+          "properties": {
+            "source": {"enum": ["server_info", "server_log", "runtime_introspection"]},
+            "enabled": {"const": true},
+            "captured_batch_sizes": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+            "memory_bytes": {"type": "integer", "minimum": 1}
+          }
+        },
+        "process": {"type": "object"}
+      }
+    },
+    "typedPool": {
+      "type": "object", "required": ["bytes", "dtype"],
+      "properties": {"bytes": {"type": "integer", "minimum": 1}, "dtype": {"const": "fp8_e4m3"}}
+    },
+    "mambaPool": {
+      "type": "object", "required": ["bytes", "dtype", "slots"],
+      "properties": {"bytes": {"type": "integer", "minimum": 1}, "dtype": {"const": "float32"}, "slots": {"enum": [8, 12]}}
+    },
+    "dflashPool": {
+      "type": "object", "required": ["bytes", "states"],
+      "properties": {"bytes": {"type": "integer", "minimum": 1}, "states": {"const": 8}}
+    },
+    "schedulerWrapper": {
+      "type": "object",
+      "required": ["collector_timestamp", "event"],
+      "properties": {
+        "collector_timestamp": {"$ref": "#/$defs/stamp"},
+        "event": {
+          "type": "object",
+          "required": ["schema", "source", "timestamp", "event", "client_request_id", "server_process_id", "running", "queued"],
+          "properties": {
+            "schema": {"const": "qwen38.server-scheduler-event"},
+            "source": {"const": "server_scheduler"},
+            "timestamp": {"type": "string", "format": "date-time"},
+            "event": {"enum": ["queued", "admitted", "started", "completed", "failed"]},
+            "client_request_id": {"type": "string", "minLength": 1},
+            "server_process_id": {"type": "string", "minLength": 1},
+            "running": {"type": "integer", "minimum": 0},
+            "queued": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "gpuSample": {
+      "allOf": [{"$ref": "#/$defs/stamp"}],
+      "type": "object",
+      "required": ["source", "gpu", "total_vram_bytes", "free_vram_bytes", "gpu_utilization_pct", "power_w", "temperature_c"],
+      "properties": {"source": {"const": "nvidia-smi"}, "gpu": {"type": "string"}}
+    }
+  }
+}

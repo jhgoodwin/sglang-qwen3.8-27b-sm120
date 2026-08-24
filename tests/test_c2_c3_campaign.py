@@ -1,6 +1,9 @@
 import json
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from bench import c2_c3_runner
 
 
 ROOT = Path(__file__).parents[1]
@@ -67,6 +70,19 @@ class C2C3CampaignContractTests(unittest.TestCase):
         phase7 = json.loads((ROOT / "bench/phase7-minimum.json").read_text())
         self.assertEqual(phase7["schema"], "qwen38.phase7")
         self.assertEqual(phase7["version"], 1)
+
+    def test_concurrent_schema_is_distinct_and_example_dry_run_is_runnable(self):
+        schema = json.loads((ROOT / "bench/c2-c3-run-schema.json").read_text())
+        self.assertEqual(schema["properties"]["schema"]["const"], "qwen38.c2-c3-concurrent-run")
+        self.assertNotEqual(schema["properties"]["schema"]["const"], "qwen38.phase7")
+        example = ROOT / "bench/c2-c3-run-spec.example.json"
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "dry.json"
+            self.assertEqual(c2_c3_runner.main(["dry-run", "--spec", str(example),
+                                               "--output", str(output)]), 0)
+            document = json.loads(output.read_text())
+        self.assertEqual(document["mode"], "dry-run")
+        self.assertEqual(document["barrier_parties"], 3)
 
 
 if __name__ == "__main__":
