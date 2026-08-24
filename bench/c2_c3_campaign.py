@@ -61,13 +61,15 @@ class ExactPromptBuilder:
     """
     def __init__(self, endpoint: str, model: str, reasoning_effort: str = "medium",
                  max_calls: int = 240, timeout: float = 30,
-                 tokenize: Callable[[str, dict[str, Any], float], tuple[int, dict[str, Any]]] = post_json):
+                 tokenize: Callable[[str, dict[str, Any], float], tuple[int, dict[str, Any]]] = post_json,
+                 artifact_dir: pathlib.Path | None = None):
         self.endpoint = endpoint.rstrip("/") + "/v1/tokenize"
         self.model = model
         self.reasoning_effort = reasoning_effort
         self.max_calls = max_calls
         self.timeout = timeout
         self.tokenize = tokenize
+        self.artifact_dir = artifact_dir
         self.calls: list[dict[str, Any]] = []
 
     def _messages(self, text: str) -> list[dict[str, str]]:
@@ -76,23 +78,34 @@ class ExactPromptBuilder:
     def _probe(self, text: str) -> int:
         if len(self.calls) >= self.max_calls:
             raise RuntimeError(f"tokenize call bound {self.max_calls} exceeded")
-        body = {"model": self.model, "messages": self._messages(text),
+        messages = self._messages(text)
+        body = {"model": self.model, "messages": messages,
                 "reasoning_effort": self.reasoning_effort}
         try:
             status, response = self.tokenize(self.endpoint, body, self.timeout)
         except Exception as exc:
-            self.calls.append({"request": body, "error": f"{type(exc).__name__}: {exc}"})
+            self.calls.append({"messages_sha256": _messages_hash(messages), "error": f"{type(exc).__name__}: {exc}"})
             raise
         count = token_count(response)
-        self.calls.append({"request": body, "status": status, "response": response,
-                           "token_count": count})
+        record: dict[str, Any] = {"messages_sha256": _messages_hash(messages), "message_chars": len(text),
+                                  "status": status, "token_count": count}
+        if self.artifact_dir is not None:
+            response_dir = self.artifact_dir / "tokenize-responses"
+            response_dir.mkdir(parents=True, exist_ok=True)
+            response_path = response_dir / f"{len(self.calls):04d}.json"
+            response_path.write_text(json.dumps(response, indent=2) + "\n")
+            record["response_artifact"] = str(response_path)
+        else:
+            record["response"] = response
+        self.calls.append(record)
         return count
 
     def build(self, target: int) -> tuple[str, dict[str, Any]]:
         if type(target) is not int or target <= 0:
             raise ValueError("target token count must be positive")
-        # Deliberately simple, deterministic UTF-8 text.  The server's chat
-        # template remains the source of truth for all overhead.
+        # The server's chat template remains the source of truth.  The coarse
+        # unit is intentionally multi-token; correction uses independent
+        # suffix candidates and never assumes one repetition equals one token.
         unit = " qwen38-campaign-filler"
         base = "Return the requested result."
         counts: dict[int, int] = {}
@@ -113,20 +126,22 @@ class ExactPromptBuilder:
                 lo = mid
             else:
                 hi = mid
-        center = hi
-        radius = min(4096, max(64, (hi - lo) * 2))
-        candidates = [center + delta for delta in range(-radius, radius + 1)]
-        # Prefer nearby values and then deterministic pseudo-random offsets to
-        # catch local merge irregularities while retaining a hard call bound.
-        candidates += [center + ((i * 7919) % (radius * 2 + 1)) - radius for i in range(64)]
-        for chars in candidates:
-            if chars < 0:
-                continue
-            if count_chars(chars) == target:
-                text = base + unit * chars
-                proof = {"target": target, "observed": target, "messages": self._messages(text),
-                         "calls": list(self.calls), "algorithm": "bounded-binary-local-correction"}
-                return text, proof
+        center = lo
+        # Search a bounded correction alphabet against the real tokenizer. It
+        # covers residue gaps caused by multi-token units and merge boundaries.
+        suffixes = ["", " ", "a", "b", "c", "x", "y", "z", "0", "1", ".", "!", "?", "\n"]
+        suffixes += [a + b for a in suffixes[1:] for b in suffixes[1:]]
+        suffixes += [a + b + c for a in (" a", " b", " c", " x", " y", " z")
+                     for b in ("a", "b", "c", "x", "y", "z") for c in ("a", "b", "c", "x", "y", "z")]
+        for chars in range(max(0, center - 2), center + 3):
+            prefix = base + unit * chars
+            for suffix in suffixes[:40]:
+                text = prefix + suffix
+                if self._probe(text) == target:
+                    proof = {"target": target, "observed": target,
+                             "messages_sha256": _messages_hash(self._messages(text)),
+                             "calls": list(self.calls), "algorithm": "bounded-coarse-plus-tokenized-suffix"}
+                    return text, proof
         raise RuntimeError(f"failed closed: no exact prompt count {target} after {len(self.calls)} calls")
 
     def prove(self, text: str, target: int) -> dict[str, Any]:
@@ -134,14 +149,19 @@ class ExactPromptBuilder:
         observed = self._probe(text)
         if observed != target:
             raise RuntimeError(f"prompt drift: expected {target}, observed {observed}")
-        return {"target": target, "observed": observed, "messages": self._messages(text),
+        return {"target": target, "observed": observed,
+                "messages_sha256": _messages_hash(self._messages(text)),
                 "call": self.calls[-1]}
 
 
-def request_shape(stage: str, profile: str, repetition: int, prompts: list[str], manifest: dict[str, Any]) -> dict[str, Any]:
+def _messages_hash(messages: list[dict[str, str]]) -> str:
+    return hashlib.sha256(json.dumps(messages, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def request_shape(stage: str, profile: str, repetition: int, prompts: list[str], manifest: dict[str, Any], model: str | None = None) -> dict[str, Any]:
     spec: dict[str, Any] = {"schema": c2_c3_runner.SPEC_SCHEMA, "version": 1,
         "run_id": f"{profile}-{stage}-r{repetition}", "profile": profile,
-        "stage": stage, "base_url": "", "model": manifest["runtime"]["model"].split("#")[-1],
+        "stage": stage, "base_url": "", "model": model or manifest["runtime"]["model"],
         "requests": []}
     runtime = next(item for item in manifest["profiles"] if item["id"] == profile)
     input_tokens, output_tokens = TARGETS.get(stage, (16, 32))
@@ -163,6 +183,39 @@ def free_vram_gate(raw: dict[str, Any], minimum: float = .05) -> None:
                  and type(row.get("total_vram_bytes")) is int and row["total_vram_bytes"] > 0]
     if fractions and min(fractions) < minimum:
         raise RuntimeError(f"free VRAM gate failed: minimum {min(fractions):.4f} < {minimum:.4f}")
+
+
+def short_warmup(base_url: str, model: str, artifact: pathlib.Path, timeout: float = 180) -> str:
+    """Issue exactly one bounded stream before PID bootstrap."""
+    rid = f"campaign-warmup-{time.time_ns()}-{hashlib.sha256(str(artifact).encode()).hexdigest()[:10]}"
+    spec = {"model": model, "messages": [{"role": "user", "content": "Reply with one short word."}],
+            "max_tokens": 8, "stream": True, "reasoning_effort": "medium"}
+    request = urllib.request.Request(base_url.rstrip("/") + "/v1/chat/completions",
+                                     data=json.dumps(spec).encode(), headers={"content-type": "application/json",
+                                     "x-request-id": rid}, method="POST")
+    rows: list[str] = []
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        while True:
+            line = response.readline()
+            if not line:
+                break
+            rows.append(line.decode("utf-8", errors="replace"))
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    artifact.write_text(json.dumps({"request_id": rid, "request": spec, "raw_sse": rows}, indent=2) + "\n")
+    return rid
+
+
+def _scheduler_has_request(path: pathlib.Path, request_id: str) -> bool:
+    if not path.is_file():
+        return False
+    for line in path.read_text().splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if row.get("client_request_id") == request_id:
+            return True
+    return False
 
 
 def plan(manifest: dict[str, Any], profile: str, base_url: str) -> dict[str, Any]:
@@ -200,6 +253,9 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--server-evidence", type=pathlib.Path, required=True)
     run.add_argument("--scheduler-events", type=pathlib.Path, required=True)
     run.add_argument("--server-pid", default="auto")
+    run.add_argument("--sample-interval", type=float, default=1.0)
+    run.add_argument("--timeout", type=float, default=None,
+                     help="per-cell stream timeout; defaults to 1800s, 2100s for C/D, 2700s for E")
     args = parser.parse_args(argv)
     manifest = json.loads(args.manifest.read_text())
     args.artifact_root.mkdir(parents=True, exist_ok=True)
@@ -213,13 +269,44 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("BLOCKED: collect server evidence and scheduler JSONL before run")
     state_path = args.artifact_root / "state.json"
     state = _load_state(state_path)
+    server = json.loads(args.server_evidence.read_text())
+    observed_args = server.get("observed_server_args", {})
+    model = observed_args.get("model_path")
+    if not isinstance(model, str) or not model:
+        raise SystemExit("BLOCKED: server evidence lacks observed model_path")
+    if not args.server_evidence.is_file() or not args.scheduler_events.is_file():
+        raise SystemExit("BLOCKED: evidence paths disappeared")
+    warmup_artifact = args.artifact_root / "warmup" / "short-stream.json"
+    if not state.get("warmup_accepted"):
+        warmup_id = short_warmup(args.base_url, model, warmup_artifact, timeout=180)
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            try:
+                if not _scheduler_has_request(args.scheduler_events, warmup_id):
+                    raise ValueError("warmup scheduler event not observed")
+                c2_c3_runner.bootstrap_server_pid(args.scheduler_events)
+                state["warmup_accepted"] = str(warmup_artifact)
+                state_path.write_text(json.dumps(state, indent=2) + "\n")
+                break
+            except ValueError:
+                time.sleep(.5)
+        if not state.get("warmup_accepted"):
+            raise SystemExit("BLOCKED: warmup completed but scheduler identity was not observed")
     # Prompt generation is performed per shape, and all tokenize calls are
     # retained before any generation is submitted.
-    builder = ExactPromptBuilder(args.base_url, manifest["runtime"]["model"])
+    builder = ExactPromptBuilder(args.base_url, model, artifact_dir=args.artifact_root)
     prompts_by_target: dict[int, str] = {}
     proofs: list[dict[str, Any]] = []
+    prompt_dir = args.artifact_root / "prompts"
+    prompt_dir.mkdir(parents=True, exist_ok=True)
     for target in sorted({value[0] for value in TARGETS.values()}):
-        prompts_by_target[target], proof = builder.build(target)
+        prompt_path = prompt_dir / f"{target}.txt"
+        if prompt_path.is_file():
+            prompts_by_target[target] = prompt_path.read_text()
+            proof = {"target": target, "observed": "persisted", "messages_sha256": _messages_hash(builder._messages(prompts_by_target[target]))}
+        else:
+            prompts_by_target[target], proof = builder.build(target)
+            prompt_path.write_text(prompts_by_target[target])
         proofs.append(proof)
     (args.artifact_root / "prompt-tokenize-proofs.json").write_text(
         json.dumps({"calls": builder.calls, "proofs": proofs}, indent=2) + "\n")
@@ -240,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
                 (args.artifact_root / "prompt-tokenize-proofs.json").write_text(
                     json.dumps({"calls": builder.calls, "proofs": proofs}, indent=2) + "\n")
             specs = request_shape(stage, args.profile, repetition,
-                                  [prompts_by_target.get(input_tokens, "Reply briefly.")], manifest)
+                                  [prompts_by_target.get(input_tokens, "Reply briefly.")], manifest, model=model)
             specs["base_url"] = args.base_url
             spec_path = args.artifact_root / "specs" / f"{args.profile}-{stage}-r{repetition}.json"
             spec_path.parent.mkdir(parents=True, exist_ok=True)
@@ -249,9 +336,10 @@ def main(argv: list[str] | None = None) -> int:
             output.parent.mkdir(parents=True, exist_ok=True)
             raw = None
             try:
-                server = json.loads(args.server_evidence.read_text())
                 pid = c2_c3_runner.bootstrap_server_pid(args.scheduler_events)[0] if args.server_pid == "auto" else int(args.server_pid)
-                raw = c2_c3_runner.run_concurrent(specs, server, args.scheduler_events, server_pid=pid)
+                timeout = args.timeout or (2700 if stage == "E-four-arrival-queue" else (2100 if stage in ("C-max-output-decode", "D-combined-boundary-safe") else 1800))
+                raw = c2_c3_runner.run_concurrent(specs, server, args.scheduler_events, server_pid=pid,
+                                                   timeout=timeout, sample_interval=args.sample_interval)
                 free_vram_gate(raw)
                 imported = c2_c3_importer.validate_and_import(raw)
                 output.write_text(json.dumps({"raw": raw, "imported": imported}, indent=2) + "\n")

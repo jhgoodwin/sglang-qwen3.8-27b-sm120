@@ -40,6 +40,36 @@ class CampaignDriverTests(unittest.TestCase):
         self.assertTrue(all("temperature" not in item and "top_p" not in item and "top_k" not in item
                             for item in spec["requests"]))
         self.assertEqual(spec["requests"][0]["expected_prompt_tokens"], 130048)
+        self.assertEqual(campaign.request_shape("B-near-native-prefill", "c2", 1, ["p"], manifest,
+                                                 model="/models/nvfp4")["model"], "/models/nvfp4")
+
+    def test_multi_token_coarse_unit_requires_suffix_residue_correction(self):
+        def tokenize(url, body, timeout):
+            text = body["messages"][0]["content"]
+            n = text.count(" qwen38-campaign-filler")
+            suffix = text.rsplit(" qwen38-campaign-filler", 1)[-1]
+            return 200, {"count": n * 3 + (1 if suffix.endswith("a") else 0)}
+        builder = campaign.ExactPromptBuilder("http://fake", "model", max_calls=240, tokenize=tokenize)
+        prompt, proof = builder.build(97)
+        self.assertEqual(proof["observed"], 97)
+        self.assertTrue(prompt.endswith("a"))
+
+    def test_short_warmup_is_bounded_and_retains_request_id(self):
+        class Response:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def readline(self):
+                if hasattr(self, "done"): return b""
+                self.done = True
+                return b"data: [DONE]\n\n"
+        with tempfile.TemporaryDirectory() as directory, patch("urllib.request.urlopen", return_value=Response()) as opened:
+            path = pathlib.Path(directory) / "warmup.json"
+            campaign.short_warmup("http://fake", "/models/nvfp4", path)
+            value = json.loads(path.read_text())
+        self.assertLessEqual(value["request"]["max_tokens"], 8)
+        self.assertTrue(value["request_id"].startswith("campaign-warmup-"))
+        self.assertEqual(opened.call_args.kwargs["timeout"], 180)
 
     def test_resume_and_vram_gate(self):
         with self.assertRaisesRegex(RuntimeError, "free VRAM"):
