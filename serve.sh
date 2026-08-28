@@ -127,7 +127,7 @@ mamba_strategy=extra_buffer_lazy
 case "$profile" in
   tp1-nvfp4-cookbook-no-spec|tp1-nvfp4-dflash-cookbook-default) mamba_strategy=extra_buffer ;;
 esac
-extra=(--attention-backend flashinfer --chunked-prefill-size 2048 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --mamba-ssm-dtype float32 --mamba-radix-cache-strategy "$mamba_strategy")
+extra=(--attention-backend flashinfer --chunked-prefill-size 2048 --sleep-on-idle --reasoning-parser qwen3 --tool-call-parser qwen3_coder --mamba-ssm-dtype float32 --mamba-radix-cache-strategy "$mamba_strategy")
 # The pinned production checkpoint has no K/V scaling-factor metadata. Keep
 # FP8 K/V for measured/campaign profiles, but use the runtime-supported BF16
 # pool for bare production so it does not fall back to unit FP8 scales.
